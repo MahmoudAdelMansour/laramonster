@@ -1,29 +1,26 @@
-// Package client talks to a running laramonster daemon over its unix socket.
+// Package client talks to a running laramonster daemon (see internal/ipc).
 package client
 
 import (
-	"os"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"laramonster/internal/ipc"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
-	"laramonster/internal/paths"
 )
 
 var httpClient = &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", paths.Socket())
-		},
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) { return ipc.Dial(ctx) },
 	},
 }
 
@@ -43,6 +40,7 @@ func Call(method, path string, body any) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("X-LaraMonster", "cli")
+	ipc.Authorize(req)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -64,10 +62,12 @@ func Call(method, path string, body any) ([]byte, error) {
 }
 
 func Running() bool {
-	conn, err := net.DialTimeout("unix", paths.Socket(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, err := ipc.Dial(ctx)
 	if err != nil {
 		if os.Getenv("LARAMONSTER_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "debug: dial %s: %v\n", paths.Socket(), err)
+			fmt.Fprintf(os.Stderr, "debug: reach engine: %v\n", err)
 		}
 		return false
 	}

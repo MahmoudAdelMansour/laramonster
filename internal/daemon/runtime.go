@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"laramonster/internal/account"
+	"laramonster/internal/ipc"
 	"laramonster/internal/laravel"
 	"log"
 	"net"
@@ -142,7 +143,11 @@ func (r *Runtime) Reload() error {
 
 	var proxies []server.Proxy
 	if cfg.BrowserDashboard {
-		proxies = append(proxies, server.Proxy{Name: server.DashboardName, Upstream: "unix/" + paths.Socket()})
+		p := server.Proxy{Name: server.DashboardName, Upstream: ipc.Upstream()}
+		if t := ipc.Token(); t != "" {
+			p.Headers = map[string]string{ipc.Header: t}
+		}
+		proxies = append(proxies, p)
 	}
 	if d, ok := services.Get("mailpit"); ok && r.svc.Running("mailpit") {
 		port := cfg.Service(d.Name, d.DefaultPort).Port

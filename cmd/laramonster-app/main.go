@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"laramonster/internal/ipc"
 	"log"
 	"net"
 	"net/http"
@@ -197,12 +198,10 @@ func assetHandler(app **application.App, ready func()) http.Handler {
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(&url.URL{Scheme: "http", Host: "laramonster"})
 			r.Out.Host = "laramonster"
+			ipc.Authorize(r.Out)
 		},
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, "unix", paths.Socket())
-			},
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) { return ipc.Dial(ctx) },
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			w.Header().Set("Content-Type", "application/json")

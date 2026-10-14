@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"laramonster/internal/account"
-	"laramonster/internal/update"
 	"laramonster/internal/config"
 	"laramonster/internal/core"
 	"laramonster/internal/laravel"
 	"laramonster/internal/php"
 	"laramonster/internal/sites"
+	"laramonster/internal/update"
 )
 
 // errProRequired is answered with 402 and the account state, so the UI can

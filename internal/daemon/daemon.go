@@ -6,8 +6,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"laramonster/internal/ipc"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,7 +31,6 @@ func Run(ctx context.Context, ready func(*Runtime)) error {
 	if client.Running() {
 		return errors.New("LaraMonster is already running")
 	}
-	_ = os.Remove(paths.Socket())
 
 	if f, err := os.OpenFile(filepath.Join(paths.Logs(), "laramonster.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 		defer f.Close()
@@ -44,16 +43,16 @@ func Run(ctx context.Context, ready func(*Runtime)) error {
 
 	rt := NewRuntime()
 
-	// The socket must exist before Caddy proxies the dashboard to it.
-	ln, err := net.Listen("unix", paths.Socket())
+	// The API endpoint must exist before Caddy proxies the dashboard to it.
+	ln, token, err := ipc.Listen()
 	if err != nil {
 		return err
 	}
-	defer os.Remove(paths.Socket())
+	defer ipc.Remove()
 	// Runs before the socket is removed (defers are LIFO): clients that wait
 	// for the socket to disappear then know the ports are free too.
 	defer rt.Shutdown()
-	srv := &http.Server{Handler: rt.Handler(stop)}
+	srv := &http.Server{Handler: ipc.Guard(token, rt.Handler(stop))}
 	go srv.Serve(ln)
 
 	if err := rt.Reload(); err != nil {

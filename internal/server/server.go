@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -26,8 +27,9 @@ const (
 
 // Proxy is an extra host that is reverse-proxied (dashboard, Mailpit UI…).
 type Proxy struct {
-	Name     string // host label, e.g. "mailpit"
-	Upstream string // e.g. "127.0.0.1:8025" or "unix//path.sock"
+	Name     string            // host label, e.g. "mailpit"
+	Upstream string            // e.g. "127.0.0.1:8025" or "unix//path.sock"
+	Headers  map[string]string // added to proxied requests (the engine token on Windows)
 }
 
 // Caddyfile renders the Caddy config.
@@ -60,7 +62,20 @@ func Caddyfile(cfg *config.Config, list []sites.Site, upstreams func(version str
 `, cfg.HTTPPort, cfg.HTTPSPort, quote(paths.Data()), quote(filepath.Join(paths.Logs(), "caddy.log")))
 
 	for _, p := range proxies {
-		fmt.Fprintf(&b, "http://%s {\n\treverse_proxy %s\n}\n\n", host(cfg, p.Name, cfg.HTTPPort), p.Upstream)
+		if len(p.Headers) == 0 {
+			fmt.Fprintf(&b, "http://%s {\n\treverse_proxy %s\n}\n\n", host(cfg, p.Name, cfg.HTTPPort), p.Upstream)
+			continue
+		}
+		fmt.Fprintf(&b, "http://%s {\n\treverse_proxy %s {\n", host(cfg, p.Name, cfg.HTTPPort), p.Upstream)
+		keys := make([]string, 0, len(p.Headers))
+		for k := range p.Headers {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "\t\theader_up %s %s\n", k, quote(p.Headers[k]))
+		}
+		b.WriteString("\t}\n}\n\n")
 	}
 
 	for _, s := range list {

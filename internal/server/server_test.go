@@ -57,3 +57,12 @@ func TestCaddyfileOffAndProxySites(t *testing.T) {
 		t.Errorf("counter handler not configured for the site:\n%s", j)
 	}
 }
+
+func TestCaddyfileProxyHeaders(t *testing.T) {
+	c := config.Default()
+	cf := Caddyfile(c, nil, nil, []Proxy{{Name: DashboardName, Upstream: "127.0.0.1:5000", Headers: map[string]string{"X-LaraMonster-Token": "abc"}}})
+	if !strings.Contains(cf, "reverse_proxy 127.0.0.1:5000 {\n\t\theader_up X-LaraMonster-Token \"abc\"\n\t}") {
+		t.Errorf("token header missing from the dashboard proxy:\n%s", cf)
+	}
+}
+
