@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"laramonster/internal/account"
+	"laramonster/internal/update"
 	"laramonster/internal/config"
 	"laramonster/internal/core"
 	"laramonster/internal/laravel"
@@ -31,6 +32,8 @@ var errProRequired = errors.New("pro_required")
 func (rt *Runtime) registerPro(handle func(string, apiFunc), mux *http.ServeMux) {
 	// ── account (always available) ──
 	handle("GET /api/account", func(*http.Request) (any, error) { return rt.acct.Status(), nil })
+	// Newest release vs this build (cached 6h): the sidebar's "Update available".
+	handle("GET /api/update", func(*http.Request) (any, error) { return update.Check(), nil })
 	handle("POST /api/account/sign-in", func(r *http.Request) (any, error) {
 		b, err := readBody(r)
 		if err != nil {

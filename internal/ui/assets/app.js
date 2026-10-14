@@ -151,6 +151,7 @@ document.addEventListener('alpine:init', () => {
     q: '',
     acct: null,
     signin: { email: '', password: '', key: '', showKey: false, busy: false, error: '', needAccount: false, notice: '' },
+    update: null, // { available, latest, download_url } from /api/update (cached 6h by the engine)
     proSites: null,
     proSite: storeGet('lm.proSite', ''),
     proError: '',
@@ -181,6 +182,10 @@ document.addEventListener('alpine:init', () => {
     nav: [],
 
     start() {
+      // Ask once shortly after launch, then every 6 hours; failures stay silent.
+      const checkUpdate = () => api('GET', '/update').then(u => { this.update = u; }).catch(() => {});
+      setTimeout(checkUpdate, 4000);
+      setInterval(checkUpdate, 6 * 3600 * 1000);
       this.nav = [
         { id: 'dashboard', label: 'Dashboard', icon: 'home', count: () => null },
         { id: 'sites', label: 'Sites', icon: 'globe', count: () => this.s?.sites.length ?? null },
