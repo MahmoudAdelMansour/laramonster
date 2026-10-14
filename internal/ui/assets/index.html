@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071431">
+<title>LaraMonster</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="preload" href="fonts/anton.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app.css">
+<script defer src="app.js"></script>
+<script defer src="vendor/alpine.min.js"></script>
+</head>
+<body x-data="app" x-init="start()" @keydown.escape.window="escape()">
+
+<!-- icon sprite (Lucide-style strokes) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m13.5 4-3 16"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+    <symbol id="i-logs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-cache" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16v4H4zM4 13h16v4H4z"/><path d="M8 9h.01M8 15h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3.2M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+  </defs>
+</svg>
+
+<!-- engine unreachable -->
+<div class="offline" x-show="offline" x-cloak>
+  <div>
+    <img src="img/monster.png" alt="">
+    <h1>The monster is sleeping</h1>
+    <p>LaraMonster's engine isn't running. Start it from the app menu, or in a terminal:</p>
+    <code>laramonster start -b</code>
+    <p class="small" style="margin-top:18px">This page reconnects on its own.</p>
+  </div>
+</div>
+
+<!-- first load -->
+<div class="offline" x-show="!offline && !s" x-cloak style="background:var(--bg);color:var(--muted)">
+  <div class="row"><svg class="i spin"><use href="#i-loader"/></svg> Waking the monster…</div>
+</div>
+
+<!-- mobile top bar -->
+<header class="topbar" x-show="!offline && s" x-cloak>
+  <button class="btn btn-ghost icon-btn" @click="drawer = true" aria-label="Open menu"><svg class="i"><use href="#i-menu"/></svg></button>
+  <img src="img/monster.png" alt="">
+  <div class="wordmark grow"><span>Lara</span>Monster</div>
+  <button class="btn btn-orange icon-btn" @click="openWizard()" aria-label="New project"><svg class="i"><use href="#i-plus"/></svg></button>
+</header>
+<div class="scrim" x-show="drawer" x-cloak @click="drawer = false" x-transition.opacity></div>
+
+<div class="shell" x-show="!offline && s" x-cloak>
+  <!-- ============ sidebar ============ -->
+  <aside class="sidebar" :class="{ open: drawer }" aria-label="Main navigation">
+    <div class="brand">
+      <img src="img/monster.png" alt="">
+      <div style="min-width:0">
+        <div class="wordmark"><span>Lara</span>Monster</div>
+        <small>local PHP environment</small>
+      </div>
+    </div>
+    <nav class="nav">
+      <template x-for="item in nav" :key="item.id">
+        <div>
+          <div class="nav-label" x-show="item.group" x-text="item.group"></div>
+          <a :href="'#' + item.id" :class="{ active: page === item.id }" @click="drawer = false" :aria-current="page === item.id ? 'page' : null">
+            <svg class="i"><use :href="'#i-' + item.icon"/></svg>
+            <span x-text="item.label"></span>
+            <span class="count" :class="{ hot: item.hot && item.hot(), pro: item.pro }" x-show="item.count() !== null" x-text="item.count()"></span>
+          </a>
+        </div>
+      </template>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="engine"><i class="dot on pulse"></i> Engine running</div>
+      <div class="engine-sub">v<span x-text="s?.version"></span></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-sm btn-ghost side-btn" @click="cycleTheme()" :aria-label="'Theme: ' + theme">
+          <svg class="i"><use :href="theme === 'dark' ? '#i-moon' : (theme === 'light' ? '#i-sun' : '#i-monitor')"/></svg>
+          <span x-text="{ system: 'Auto', light: 'Light', dark: 'Dark' }[theme]"></span>
+        </button>
+        <button class="btn btn-sm btn-ghost side-btn icon-btn" @click="reload()" aria-label="Reload configuration" title="Reload configuration">
+          <svg class="i"><use href="#i-refresh"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <template x-if="s">
+    <div>
+
+    <!-- warnings -->
+    <div class="stack" style="margin-bottom:16px" x-show="s.warnings.length">
+      <template x-for="w in s.warnings" :key="w">
+        <div class="alert"><svg class="i"><use href="#i-alert"/></svg><div x-text="w"></div></div>
+      </template>
+    </div>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section x-show="page === 'dashboard'">
+      <div class="card hero" style="margin-bottom:16px">
+        <div style="min-width:0">
+          <span class="badge" style="background:rgba(43,181,125,.18);color:#7DF0BF"><i class="dot on"></i> All systems roaring</span>
+          <h2 style="margin-top:12px">Unleash your next Laravel app</h2>
+          <p>Projects in your parked folders are served at <b x-text="'*.' + s.config.tld"></b> with PHP <b x-text="s.default_php || '—'"></b>. Create one with your starter kit, database and packages in a minute.</p>
+          <div class="actions">
+            <button class="btn btn-orange" @click="openWizard()"><svg class="i"><use href="#i-plus"/></svg> New project</button>
+            <button class="btn btn-ghost" @click="openAdd('park')"><svg class="i"><use href="#i-folder"/></svg> Add folder</button>
+          </div>
+        </div>
+        <img src="img/monster.png" alt="">
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom:16px">
+        <a class="card stat" href="#sites">
+          <div class="icon tone-blue"><svg class="i"><use href="#i-globe"/></svg></div>
+          <div><b x-text="siteCounts().active"></b><span x-text="siteCounts().off ? 'Active sites (' + siteCounts().off + ' off)' : 'Sites'"></span></div>
+        </a>
+        <a class="card stat" href="#mail">
+          <div class="icon tone-orange"><svg class="i"><use href="#i-mail"/></svg></div>
+          <div><b x-text="s.mail.running ? s.mail.unread + ' new' : 'Off'"></b><span>Mail inbox</span></div>
+        </a>
+        <a class="card stat" href="#services">
+          <div class="icon tone-green"><svg class="i"><use href="#i-db"/></svg></div>
+          <div><b x-text="runningServices() + ' running'"></b><span x-text="'of ' + s.services.length + ' services'"></span></div>
+        </a>
+        <a class="card stat" href="#settings">
+          <div class="icon tone-flame"><svg class="i"><use href="#i-shield"/></svg></div>
+          <div><b x-text="s.tls.trusted ? 'Trusted' : 'Not trusted'"></b><span>Local HTTPS</span></div>
+        </a>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Setup checklist</h2><span class="sub" x-text="checklistDone() + ' of ' + checklist().length + ' done'"></span></div>
+          <template x-for="c in checklist()" :key="c.title">
+            <div class="check">
+              <div class="tick" :class="{ done: c.done }"><svg class="i"><use :href="c.done ? '#i-check' : '#i-' + c.icon"/></svg></div>
+              <div class="grow"><b style="color:var(--title)" x-text="c.title"></b><div class="small muted" x-text="c.text"></div></div>
+              <button class="btn btn-sm" x-show="!c.done && !!c.action" @click="c.action()" x-text="c.button"></button>
+            </div>
+          </template>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Your sites</h2><a href="#sites" class="small">View all</a></div>
+          <template x-for="site in sortedSites().filter(x => x.enabled).slice(0, 6)" :key="site.name">
+            <div class="list-item">
+              <i class="dot" :class="healthDot(site)" :title="healthText(site)"></i>
+              <div class="grow">
+                <div class="site-name"><span x-text="site.name"></span><span class="badge badge-blue" x-show="site.laravel">Laravel</span></div>
+                <a class="small ellipsis" style="display:block" :href="site.url" target="_blank" rel="noopener" x-text="site.url"></a>
+              </div>
+              <span class="badge" x-text="'PHP ' + (site.php || '—')"></span>
+            </div>
+          </template>
+          <div class="empty" x-show="!s.sites.length">
+            <img src="img/monster.png" alt="" style="border-radius:20px">
+            <h3>No sites yet</h3>
+            <p>Park the folder that holds your projects; every subfolder becomes a site.</p>
+            <button class="btn" @click="openAdd('park')">Park a folder</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SITES ============ -->
+    <section x-show="page === 'sites'">
+      <div class="page-head">
+        <div><h1>Sites</h1><p>Every folder in a parked directory, plus linked folders. Click a site to change its address, server or .env.</p></div>
+        <div class="actions">
+          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search sites…" x-model="q" aria-label="Search sites"></div>
+          <button class="btn btn-ghost" @click="openAdd('park')"><svg class="i"><use href="#i-folder"/></svg> Add folder</button>
+          <button class="btn btn-orange" @click="openWizard()"><svg class="i"><use href="#i-plus"/></svg> New project</button>
+        </div>
+      </div>
+
+      <div class="site-toolbar">
+        <div class="tabs" role="tablist" aria-label="Filter sites">
+          <template x-for="f in [['all', 'All'], ['active', 'Active'], ['off', 'Off'], ['down', 'Not responding']]" :key="f[0]">
+            <button role="tab" :aria-selected="siteFilter === f[0]" :class="{ on: siteFilter === f[0] }" @click="setSiteFilter(f[0])" x-show="f[0] !== 'down' || siteCounts().down || siteFilter === 'down'">
+              <span x-text="f[1]"></span> <span class="count" x-text="siteCounts()[f[0]]"></span>
+            </button>
+          </template>
+        </div>
+        <label class="row small muted" style="gap:8px">Sort
+          <select class="compact" :value="siteSort" @change="setSiteSort($event.target.value)" aria-label="Sort sites">
+            <option value="laravel">Laravel first</option>
+            <option value="name">Name</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="rows-head" x-show="filteredSites().length"><span>Site</span><span class="col-path">Path</span><span>PHP / server</span><span>HTTPS</span><span>Active</span><span style="text-align:right">Actions</span></div>
+        <template x-for="site in filteredSites()" :key="site.name">
+          <div class="site-row" :class="{ 'is-off': !site.enabled }">
+            <div class="col-name" style="min-width:0">
+              <div class="site-name">
+                <i class="dot" :class="healthDot(site)" :title="healthText(site)"></i>
+                <button class="site-open" @click="openSitePanel(site)" :title="'Settings for ' + site.name" x-text="site.name"></button>
+                <span class="badge badge-blue" x-show="site.laravel">Laravel</span>
+                <span class="badge" x-show="site.linked && !site.proxy" title="Linked folder or custom address"><svg class="i" style="width:12px;height:12px"><use href="#i-link"/></svg>linked</span>
+                <span class="badge badge-red" x-show="site.health === 'down'" :title="site.reason">Not responding</span>
+              </div>
+              <a class="small ellipsis" style="display:block" :href="site.url" target="_blank" rel="noopener" x-text="site.url"></a>
+            </div>
+            <div class="col-path site-path mono" :title="site.path" x-text="site.path"></div>
+            <div class="col-php">
+              <span class="cell-label">PHP</span>
+              <button class="badge badge-blue server-badge" x-show="site.proxy" @click="openSitePanel(site)" :title="'Your server at ' + site.proxy"><svg class="i" style="width:12px;height:12px"><use href="#i-server"/></svg><span x-text="site.proxy.replace(/^https?:\/\//, '')"></span></button>
+              <select class="compact" x-show="!site.proxy" @change="isolate(site.name, $event.target.value)" :aria-label="'PHP version for ' + site.name">
+                <option value="" :selected="!s.config.isolated[site.name]" x-text="'Default (' + (s.default_php || '—') + ')'"></option>
+                <template x-for="p in s.php" :key="p.version"><option :value="p.version" x-text="'PHP ' + p.version" :selected="s.config.isolated[site.name] === p.version"></option></template>
+              </select>
+            </div>
+            <div class="col-https">
+              <span class="cell-label">HTTPS</span>
+              <label class="switch" :title="site.secure ? 'Served over HTTPS' : 'Serve over HTTPS'">
+                <input type="checkbox" :checked="site.secure" @change="secure(site.name, $event.target.checked)" :aria-label="'HTTPS for ' + site.name"><span></span>
+              </label>
+            </div>
+            <div class="col-active">
+              <span class="cell-label">Active</span>
+              <label class="switch" :title="site.enabled ? 'Switch off' : 'Switch on'">
+                <input type="checkbox" :checked="site.enabled" @change="toggleSite(site, $event.target.checked)" :aria-label="'Serve ' + site.name"><span></span>
+              </label>
+            </div>
+            <div class="col-actions actions" style="justify-content:flex-end;flex-wrap:nowrap">
+              <button class="btn btn-ghost icon-btn" title="Edit .env" aria-label="Edit .env" @click="openSitePanel(site, 'env')"><svg class="i"><use href="#i-file"/></svg></button>
+              <button class="btn btn-ghost icon-btn" title="Site settings" aria-label="Site settings" @click="openSitePanel(site)"><svg class="i"><use href="#i-cog"/></svg></button>
+              <button class="btn btn-ghost icon-btn" title="Open in browser" aria-label="Open in browser" @click="openSite(site, 'browser')"><svg class="i"><use href="#i-external"/></svg></button>
+              <button class="btn btn-ghost icon-btn" title="Open in editor" aria-label="Open in editor" @click="openSite(site, 'editor')"><svg class="i"><use href="#i-code"/></svg></button>
+              <button class="btn btn-danger icon-btn" title="Unlink" aria-label="Unlink" x-show="site.linked" @click="unlink(site.name)"><svg class="i"><use href="#i-trash"/></svg></button>
+            </div>
+          </div>
+        </template>
+        <div class="empty" x-show="!filteredSites().length">
+          <template x-if="q">
+            <div><h3 x-text="'No sites match “' + q + '”'"></h3><p>Check the spelling, or clear the search.</p><button class="btn btn-ghost" @click="q = ''">Clear search</button></div>
+          </template>
+          <template x-if="!q && s.sites.length && siteFilter !== 'all'">
+            <div><h3 x-text="{ active: 'No active sites', off: 'No sites are switched off', down: 'Every site is responding' }[siteFilter]"></h3><p>Switch a site off to stop serving it, or on to bring it back.</p><button class="btn btn-ghost" @click="setSiteFilter('all')">Show all sites</button></div>
+          </template>
+          <template x-if="!q && !s.sites.length">
+            <div><img src="img/monster.png" alt="" style="border-radius:20px"><h3>No sites yet</h3><p>Park a folder that holds your projects, link a single project, or create a new one.</p>
+              <div class="actions" style="justify-content:center"><button class="btn btn-ghost" @click="openAdd('park')">Add folder</button><button class="btn btn-orange" @click="openWizard()">New project</button></div></div>
+          </template>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px" x-show="s.config.paths?.length">
+        <div class="card-head"><h2>Parked directories</h2><span class="sub">Every subfolder is served as &lt;folder&gt;.<span x-text="s.config.tld"></span></span></div>
+        <template x-for="p in s.config.paths" :key="p">
+          <div class="list-item">
+            <svg class="i" style="color:var(--accent-text)"><use href="#i-folder"/></svg>
+            <div class="grow mono ellipsis" x-text="p" :title="p"></div>
+            <button class="btn btn-sm btn-danger" @click="forget(p)">Forget</button>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ MAIL ============ -->
+    <section x-show="page === 'mail'">
+      <div class="page-head">
+        <div><h1>Mail</h1><p>Every email your local apps send lands here instead of a real inbox.</p></div>
+        <div class="actions" x-show="s.mail.running">
+          <button class="btn btn-ghost btn-sm" @click="loadMail()" :disabled="mail.loading"><svg class="i" :class="{ spin: mail.loading }"><use href="#i-refresh"/></svg> Refresh</button>
+          <button class="btn btn-danger btn-sm" @click="deleteAllMail()" :disabled="!mail.total"><svg class="i"><use href="#i-trash"/></svg> Delete all</button>
+        </div>
+      </div>
+
+      <!-- not installed / stopped -->
+      <div class="card" x-show="!s.mail.running">
+        <div class="empty">
+          <div class="tile-icon tone-orange"><svg class="i"><use href="#i-inbox"/></svg></div>
+          <h3 x-text="s.mail.installed ? 'The mail inbox is off' : 'Set up the mail inbox'"></h3>
+          <p x-text="s.mail.installed ? 'Turn it on to catch emails from your apps again.' : 'One click downloads Mailpit (about 15 MB, no password needed), starts it with LaraMonster, and sends PHP mail() here automatically.'"></p>
+          <button class="btn btn-orange" :disabled="jobBusy('Set up Mail')" @click="setupMail()">
+            <svg class="i" :class="{ spin: jobBusy('Set up Mail') }"><use :href="jobBusy('Set up Mail') ? '#i-loader' : '#i-zap'"/></svg>
+            <span x-text="jobBusy('Set up Mail') ? 'Setting up…' : (s.mail.installed ? 'Turn on inbox' : 'Set up inbox')"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card mail-shell" :class="{ reading: !!mail.msg || mail.opening }" x-show="s.mail.running">
+        <div class="mail-list">
+          <div class="mail-tools">
+            <div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search mail…" x-model="mail.q" @input.debounce.350ms="loadMail()" aria-label="Search mail"></div>
+          </div>
+          <div class="mail-items">
+            <template x-if="mail.loading && !mail.list.length">
+              <div style="padding:16px" class="stack"><div class="skeleton" style="width:60%"></div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div>
+            </template>
+            <div class="alert error" style="margin:12px" x-show="mail.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="mail.error"></div><button class="btn-link btn small" @click="loadMail()">Try again</button></div></div>
+            <template x-for="m in mail.list" :key="m.ID">
+              <button class="mail-item" :class="{ sel: mail.msg?.ID === m.ID, unread: !m.Read }" @click="openMail(m.ID)">
+                <div class="from"><span class="ellipsis"><span class="unread-dot" x-show="!m.Read"></span><span x-text="m.From?.Name || m.From?.Address || '(no sender)'"></span></span><span x-text="ago(m.Created)" style="flex:none"></span></div>
+                <div class="subj ellipsis" x-text="m.Subject || '(no subject)'"></div>
+                <div class="snip" x-text="m.Snippet"></div>
+              </button>
+            </template>
+            <div class="empty" x-show="!mail.loading && !mail.error && !mail.list.length">
+              <template x-if="mail.q"><div><h3>No emails match</h3><p>Try another word, or clear the search.</p><button class="btn btn-ghost btn-sm" @click="mail.q = ''; loadMail()">Clear search</button></div></template>
+              <template x-if="!mail.q"><div>
+                <div class="tile-icon tone-blue"><svg class="i"><use href="#i-inbox"/></svg></div>
+                <h3>Inbox is empty</h3>
+                <p>New projects are already wired up. For existing apps, use these settings in <code>.env</code>:</p>
+                <pre class="env" style="text-align:left" x-text="mailEnv()"></pre>
+                <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="copy(mailEnv())"><svg class="i"><use href="#i-copy"/></svg> Copy</button>
+              </div></template>
+            </div>
+          </div>
+        </div>
+
+        <div class="mail-view">
+          <template x-if="mail.opening && !mail.msg">
+            <div style="padding:20px" class="stack"><div class="skeleton" style="width:50%;height:20px"></div><div class="skeleton" style="width:30%"></div><div class="skeleton" style="height:200px"></div></div>
+          </template>
+          <template x-if="!mail.msg && !mail.opening">
+            <div class="empty" style="margin:auto"><div class="tile-icon tone-blue"><svg class="i"><use href="#i-mail"/></svg></div><h3>Select an email</h3><p x-text="mail.total ? mail.total + ' email(s) in the inbox' : 'Nothing here yet'"></p></div>
+          </template>
+          <template x-if="mail.msg">
+            <div style="display:flex;flex-direction:column;min-height:0;flex:1">
+              <div class="mail-head">
+                <div class="row" style="justify-content:space-between;align-items:flex-start">
+                  <button class="btn btn-ghost btn-sm back-btn" @click="closeMail()"><svg class="i"><use href="#i-back"/></svg> Inbox</button>
+                  <div class="actions" style="margin-left:auto">
+                    <button class="btn btn-ghost icon-btn" title="Mark as unread" aria-label="Mark as unread" @click="markUnread()"><svg class="i"><use href="#i-mail"/></svg></button>
+                    <button class="btn btn-danger icon-btn" title="Delete" aria-label="Delete email" @click="deleteMail(mail.msg.ID)"><svg class="i"><use href="#i-trash"/></svg></button>
+                  </div>
+                </div>
+                <h2 x-text="mail.msg.Subject || '(no subject)'"></h2>
+                <dl class="mail-meta">
+                  <dt>From</dt><dd x-text="addr(mail.msg.From)"></dd>
+                  <dt>To</dt><dd x-text="(mail.msg.To || []).map(addr).join(', ') || '—'"></dd>
+                  <template x-if="mail.msg.Cc?.length"><dt>Cc</dt></template><template x-if="mail.msg.Cc?.length"><dd x-text="mail.msg.Cc.map(addr).join(', ')"></dd></template>
+                  <dt>Date</dt><dd x-text="new Date(mail.msg.Date).toLocaleString()"></dd>
+                </dl>
+                <div class="tabs" style="margin-top:12px">
+                  <button :class="{ on: mail.tab === 'html' }" @click="mail.tab = 'html'" x-show="!!mail.msg.HTML">HTML</button>
+                  <button :class="{ on: mail.tab === 'text' }" @click="mail.tab = 'text'">Text</button>
+                  <button :class="{ on: mail.tab === 'raw' }" @click="loadRaw()">Source</button>
+                </div>
+              </div>
+              <div class="mail-body">
+                <iframe x-show="mail.tab === 'html'" sandbox="allow-popups allow-popups-to-escape-sandbox" :srcdoc="mailHTML()" title="Email preview"></iframe>
+                <pre x-show="mail.tab === 'text'" x-text="mail.msg.Text || '(this email has no plain-text part)'"></pre>
+                <pre x-show="mail.tab === 'raw'" x-text="mail.raw || 'Loading…'"></pre>
+              </div>
+              <div class="attach" x-show="mail.msg.Attachments?.length">
+                <template x-for="a in mail.msg.Attachments" :key="a.PartID">
+                  <a class="btn btn-ghost btn-sm" :href="'/mail-part/' + mail.msg.ID + '/' + a.PartID" target="_blank" rel="noopener" :download="a.FileName"><svg class="i"><use href="#i-paperclip"/></svg><span x-text="a.FileName + ' · ' + size(a.Size)"></span></a>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PHP ============ -->
+    <section x-show="page === 'php'">
+      <div class="page-head">
+        <div><h1>PHP</h1><p>Install several PHP versions side by side and pick one per site.</p></div>
+        <div class="actions"><button class="btn btn-ghost" @click="loadAvailable(true)" :disabled="availableLoading"><svg class="i" :class="{ spin: availableLoading }"><use href="#i-refresh"/></svg> Refresh list</button></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-head"><h2>Installed</h2><span class="sub">The default version serves every site that isn't pinned</span></div>
+        <template x-for="p in s.php" :key="p.fpm">
+          <div class="list-item" style="flex-wrap:wrap">
+            <div class="php-chip" x-text="p.version"></div>
+            <div class="grow" style="min-width:200px">
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <b style="color:var(--title)" x-text="'PHP ' + p.full"></b>
+                <span class="badge badge-green" x-show="p.version === s.default_php">Default</span>
+                <span class="badge badge-blue" x-show="p.managed">LaraMonster</span>
+                <span class="badge" x-show="!p.managed">System</span>
+                <span class="badge badge-orange" x-show="s.pools.includes(p.version)"><i class="dot on"></i> serving</span>
+              </div>
+              <div class="small muted mono ellipsis" x-text="p.fpm"></div>
+              <div class="small muted" x-text="sitesOn(p.version) + ' site(s)'"></div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm btn-ghost" x-show="p.version !== s.default_php" @click="setDefault(p.version)">Make default</button>
+              <button class="btn btn-sm btn-danger" x-show="p.managed" @click="uninstallPHP(p.version)">Uninstall</button>
+            </div>
+          </div>
+        </template>
+        <div class="empty" x-show="!s.php.length"><h3>No PHP yet</h3><p>Install a version below. It's a single download, no compiling and no password.</p></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Available downloads</h2><span class="sub">Prebuilt from static-php.dev (Linux, macOS) or windows.php.net</span></div>
+        <div class="grid grid-4 card-pad" x-show="availableLoading && !available.length">
+          <template x-for="i in 4"><div class="card" style="padding:16px;box-shadow:none" ><div class="skeleton" style="width:56px;height:56px;border-radius:14px"></div><div class="skeleton" style="margin-top:12px;width:70%"></div></div></template>
+        </div>
+        <div style="padding:16px 22px" x-show="availableError"><div class="alert error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="availableError"></div><button class="btn btn-link small" @click="loadAvailable(true)">Try again</button></div></div></div>
+        <div class="grid grid-4 card-pad" x-show="available.length">
+          <template x-for="r in available" :key="r.version">
+            <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;box-shadow:none">
+              <div class="php-chip" x-text="r.version"></div>
+              <div><b style="color:var(--title)" x-text="'PHP ' + r.full"></b><div class="small muted" x-text="r.installed ? 'Installed' : 'Not installed'"></div></div>
+              <button class="btn btn-sm" x-show="!r.installed" :disabled="jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)">
+                <svg class="i" :class="{ spin: jobBusy('Install PHP ' + r.version) }"><use :href="jobBusy('Install PHP ' + r.version) ? '#i-loader' : '#i-download'"/></svg>
+                <span x-text="jobBusy('Install PHP ' + r.version) ? 'Installing…' : 'Install'"></span>
+              </button>
+              <button class="btn btn-sm btn-ghost" x-show="r.installed" :disabled="jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)">Reinstall</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SERVICES ============ -->
+    <section x-show="page === 'services'">
+      <div class="page-head">
+        <div><h1>Services</h1><p>Databases, cache and search running on your machine, with their data kept inside LaraMonster.</p></div>
+      </div>
+      <div class="grid grid-3">
+        <template x-for="sv in s.services" :key="sv.name">
+          <div class="card service">
+            <div class="service-top">
+              <div class="tile-icon" :class="serviceTone(sv)"><svg class="i"><use :href="'#i-' + serviceIcon(sv)"/></svg></div>
+              <div class="grow">
+                <h3 x-text="sv.title"></h3>
+                <div class="row small" style="gap:6px">
+                  <i class="dot" :class="sv.running ? 'on' : (sv.error ? 'err' : 'off')"></i>
+                  <span x-text="sv.running ? 'Running on port ' + sv.port : (sv.installed ? 'Stopped' : 'Not installed')"></span>
+                </div>
+              </div>
+              <span class="badge" x-text="sv.category"></span>
+            </div>
+            <div class="service-body">
+              <div class="alert error small" x-show="sv.error" style="padding:8px 12px"><div x-text="sv.error"></div></div>
+              <template x-if="!sv.installed">
+                <p class="small muted" style="margin:0" x-text="toolFor(sv.name)?.description || sv.hint"></p>
+              </template>
+              <div x-show="sv.installed">
+                <div class="row small" style="justify-content:space-between;margin-bottom:6px">
+                  <b style="color:var(--title)">.env</b>
+                  <button class="btn btn-sm btn-ghost" style="min-height:28px;padding:3px 10px" @click="copy(sv.env)"><svg class="i" style="width:13px;height:13px"><use href="#i-copy"/></svg> Copy</button>
+                </div>
+                <pre class="env" x-text="sv.env"></pre>
+              </div>
+              <div class="row small" x-show="sv.installed">
+                <label class="grow muted" :for="'port-' + sv.name">Port</label>
+                <input :id="'port-' + sv.name" type="number" :value="sv.port" style="width:100px;min-height:34px;padding:5px 10px" @change="servicePort(sv, $event.target.value)">
+              </div>
+              <div class="row small" x-show="sv.installed">
+                <span class="grow muted">Start with LaraMonster</span>
+                <label class="switch"><input type="checkbox" :checked="sv.enabled" @change="serviceDo(sv, 'enable', { on: $event.target.checked })" :aria-label="'Start ' + sv.title + ' with LaraMonster'"><span></span></label>
+              </div>
+            </div>
+            <div class="service-foot">
+              <template x-if="sv.installed">
+                <div class="actions">
+                  <button class="btn btn-sm" x-show="!sv.running" :disabled="!!busy[sv.name]" @click="serviceDo(sv, 'start')"><svg class="i" :class="{ spin: !!busy[sv.name] }"><use :href="busy[sv.name] ? '#i-loader' : '#i-play'"/></svg> <span x-text="busy[sv.name] ? 'Starting…' : 'Start'"></span></button>
+                  <button class="btn btn-sm btn-ghost" x-show="sv.running" :disabled="!!busy[sv.name]" @click="serviceDo(sv, 'stop')"><svg class="i"><use href="#i-stop"/></svg> Stop</button>
+                  <button class="btn btn-sm btn-ghost icon-btn" x-show="sv.running" :disabled="!!busy[sv.name]" title="Restart" aria-label="Restart" @click="serviceDo(sv, 'restart')"><svg class="i"><use href="#i-refresh"/></svg></button>
+                  <a class="btn btn-sm btn-ghost" x-show="sv.name === 'mailpit'" href="#mail"><svg class="i"><use href="#i-inbox"/></svg> Inbox</a>
+                  <a class="btn btn-sm btn-ghost" x-show="sv.running && sv.web_url && sv.name !== 'mailpit'" :href="sv.web_url" target="_blank" rel="noopener"><svg class="i"><use href="#i-external"/></svg> Open</a>
+                  <button class="btn btn-sm btn-ghost" @click="showLog(sv.name)"><svg class="i"><use href="#i-logs"/></svg> Logs</button>
+                </div>
+              </template>
+              <template x-if="!sv.installed">
+                <div class="row" style="flex-wrap:wrap">
+                  <button class="btn btn-sm" x-show="toolFor(sv.name)?.method" :disabled="jobBusy('Install ' + toolFor(sv.name)?.name)" @click="installTool(toolFor(sv.name))">
+                    <svg class="i" :class="{ spin: jobBusy('Install ' + toolFor(sv.name)?.name) }"><use :href="jobBusy('Install ' + toolFor(sv.name)?.name) ? '#i-loader' : '#i-download'"/></svg>
+                    <span x-text="jobBusy('Install ' + toolFor(sv.name)?.name) ? 'Installing…' : 'Install'"></span>
+                  </button>
+                  <span class="small muted" x-text="methodText(toolFor(sv.name))"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ TOOLS ============ -->
+    <section x-show="page === 'tools'">
+      <div class="page-head">
+        <div><h1>Tools</h1><p>Everything a PHP project needs, installed in one click: portable downloads where possible, your package manager<span x-show="toolsManager" x-text="' (' + toolsManager + ')'"></span> otherwise.</p></div>
+        <div class="actions"><button class="btn btn-ghost" @click="loadTools(true)" :disabled="toolsLoading"><svg class="i" :class="{ spin: toolsLoading }"><use href="#i-refresh"/></svg> Re-check</button></div>
+      </div>
+
+      <!-- Tools → LaraMonster Pro: the product page on monstersgate.com -->
+      <div class="card pro-promo" style="margin-bottom:16px">
+        <span class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></span>
+        <div class="grow"><b>LaraMonster Pro</b>
+          <div class="small muted" x-text="s?.pro ? 'Active on this computer: Events and Jobs & Queues are unlocked.' : 'Event Tracker and Jobs & Queues for your Laravel apps. Plans, licenses and pricing on monstersgate.com.'"></div></div>
+        <button class="btn btn-ghost btn-sm" x-show="s?.pro" @click="location.hash = 'events'">Open Events</button>
+        <button class="btn btn-sm" :class="s?.pro ? 'btn-ghost' : ''" @click="openURL(acct?.buy_url)"><svg class="i"><use href="#i-external"/></svg> LaraMonster Pro</button>
+      </div>
+      <div class="grid grid-3" x-show="toolsLoading && !tools.length">
+        <template x-for="i in 6"><div class="card card-pad"><div class="skeleton" style="width:44px;height:44px;border-radius:12px"></div><div class="skeleton" style="margin-top:12px;width:60%"></div><div class="skeleton" style="margin-top:8px"></div></div></template>
+      </div>
+      <template x-for="cat in toolCategories()" :key="cat">
+        <div>
+          <div class="section-title" x-text="cat"></div>
+          <div class="grid grid-3">
+            <template x-for="t in tools.filter(x => x.category === cat)" :key="t.id">
+              <div class="card tool">
+                <div class="service-top">
+                  <div class="tile-icon" :class="t.installed ? 'tone-green' : 'tone-blue'"><svg class="i"><use :href="'#i-' + toolIcon(t)"/></svg></div>
+                  <div class="grow"><h3 x-text="t.name"></h3>
+                    <span class="badge" :class="t.installed ? 'badge-green' : ''" x-text="t.installed ? (t.managed ? 'Installed by LaraMonster' : 'Installed') : 'Not installed'"></span></div>
+                </div>
+                <div class="service-body">
+                  <p class="small" style="margin:0" x-text="t.description"></p>
+                  <div class="small muted mono ellipsis" x-show="t.installed" :title="t.path" x-text="t.path"></div>
+                  <div class="alert error small" x-show="toolError(t)" style="padding:8px 12px"><div x-text="toolError(t)"></div></div>
+                </div>
+                <div class="service-foot">
+                  <template x-if="t.page"><a class="btn btn-sm btn-ghost" :href="'#' + t.page">Manage versions</a></template>
+                  <template x-if="!t.page && !t.installed && t.method">
+                    <button class="btn btn-sm" :disabled="jobBusy('Install ' + t.name)" @click="installTool(t)">
+                      <svg class="i" :class="{ spin: jobBusy('Install ' + t.name) }"><use :href="jobBusy('Install ' + t.name) ? '#i-loader' : '#i-download'"/></svg>
+                      <span x-text="jobBusy('Install ' + t.name) ? 'Installing…' : (toolError(t) ? 'Retry' : 'Install')"></span>
+                    </button>
+                  </template>
+                  <span class="small muted" x-show="!t.page && !t.installed" x-text="methodText(t)"></span>
+                  <template x-if="t.installed && t.service"><a class="btn btn-sm btn-ghost" :href="t.service === 'mailpit' ? '#mail' : '#services'">Open</a></template>
+                  <template x-if="t.installed && !t.service && !t.page"><span class="small" style="color:var(--success-text)"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-check"/></svg> Ready to use</span></template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <!-- ============ ACCOUNT (LaraMonster Pro) ============ -->
+    <section x-show="page === 'account'">
+      <div class="page-head">
+        <div><h1>Account</h1><p>Your monstersgate.com account and the LaraMonster Pro license on this computer.</p></div>
+        <button class="btn btn-ghost" @click="openURL(acct?.buy_url)"><svg class="i"><use href="#i-external"/></svg> Get LaraMonster Pro</button>
+      </div>
+
+      <!-- why this device was signed out: say it plainly, offer the way back -->
+      <div class="alert error" style="margin-bottom:16px" x-show="['replaced', 'admin'].includes(acct?.state)">
+        <svg class="i"><use href="#i-alert"/></svg>
+        <div class="grow">
+          <b x-text="acct?.state === 'replaced' ? 'Signed in on another device' : 'Signed out by an administrator'"></b>
+          <div class="small" x-text="acct?.message"></div>
+          <div class="small muted" x-show="acct?.replaced_by" x-text="'Now signed in on ' + (acct?.replaced_by?.device_name || 'another computer') + (acct?.replaced_by?.platform ? ' (' + acct.replaced_by.platform + ')' : '') + '. Signing in here signs that one out.'"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="align-items:start">
+        <!-- signed in -->
+        <div class="card" x-show="acct?.signed_in">
+          <div class="card-head"><h2>LaraMonster Pro</h2><span class="badge" :class="acctTone()" x-text="acctStateLabel()"></span></div>
+          <div class="card-pad stack" style="gap:14px">
+            <div class="alert" x-show="acct?.message && acct?.state !== 'active'"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="acct?.message"></div>
+              <button class="btn btn-sm" x-show="acct?.state === 'expired'" @click="openURL(acct?.account_url)">Renew</button></div>
+            <div class="alert info" x-show="acct?.message && acct?.state === 'active'"><svg class="i"><use href="#i-info"/></svg><div x-text="acct?.message"></div></div>
+            <dl class="facts">
+              <dt>Account</dt><dd><b x-text="acct?.account?.name"></b> · <span x-text="acct?.account?.email"></span></dd>
+              <dt>License</dt><dd><span class="mono" x-text="acct?.license?.key"></span></dd>
+              <dt>Term</dt><dd x-text="(acct?.license?.term || '—') + (acct?.license?.plan ? ' · ' + acct.license.plan : '')"></dd>
+              <dt>Expires</dt><dd x-text="licenseExpiry() || '—'"></dd>
+              <dt>This device</dt><dd x-text="acct?.device"></dd>
+              <dt>Last checked</dt><dd x-text="acct?.last_ok && !acct.last_ok.startsWith('0001') ? ago(acct.last_ok) : '—'"></dd>
+            </dl>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" @click="checkLicense()"><svg class="i"><use href="#i-refresh"/></svg> Check now</button>
+              <button class="btn btn-ghost btn-sm" @click="openURL(acct?.account_url)"><svg class="i"><use href="#i-external"/></svg> Manage on monstersgate.com</button>
+              <button class="btn btn-danger btn-sm" @click="signOutAccount()"><svg class="i"><use href="#i-power"/></svg> Sign out</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- sign in -->
+        <div class="card" x-show="acct && !acct.signed_in">
+          <div class="card-head"><h2>Sign in to LaraMonster Pro</h2></div>
+          <div class="card-pad stack" style="gap:14px">
+            <!-- One identity: the monstersgate.com account. The license is found
+                 on it; a key only adds a license to that account. -->
+            <div class="small muted">Use your monstersgate.com account. Your license is picked up automatically, whether you bought it, got it with a bundle, or added a key.</div>
+            <form class="stack" style="gap:12px" @submit.prevent="signIn()">
+              <label class="field">Email
+                <input type="text" x-model="signin.email" autocomplete="username" inputmode="email">
+              </label>
+              <label class="field">Password
+                <input type="password" x-model="signin.password" autocomplete="current-password" :placeholder="signin.key && !signin.needAccount ? 'Not needed with your own key' : ''">
+              </label>
+              <button type="button" class="link-btn small" x-show="!signin.showKey" @click="signin.showKey = true">Have a license key?</button>
+              <div class="stack" style="gap:6px" x-show="signin.showKey" x-cloak>
+                <div class="row-between">
+                  <label class="field-label" for="signin-key">License key <span class="muted small">(added to this account)</span></label>
+                  <!-- the way back: drop the key and sign in with the account only -->
+                  <button type="button" class="link-btn small" @click="signin.showKey = false; signin.key = ''; signin.needAccount = false; signin.error = ''; signin.notice = ''">Sign in without a key</button>
+                </div>
+                <input id="signin-key" type="text" class="mono" x-model="signin.key" placeholder="LM-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="alert info small" x-show="signin.notice && !signin.error"><svg class="i"><use href="#i-info"/></svg><div x-text="signin.notice"></div></div>
+              <div class="alert error small" x-show="signin.error" role="alert"><svg class="i"><use href="#i-alert"/></svg><div x-text="signin.error"></div></div>
+              <div class="actions">
+                <button class="btn" type="submit" :disabled="signin.busy"><svg class="i spin" x-show="signin.busy"><use href="#i-loader"/></svg> Sign in</button>
+                <span class="small muted">One computer at a time.</span>
+              </div>
+              <div class="actions small">
+                <span class="muted">No account?</span> <button type="button" class="link-btn" @click="openURL(siteURL('/laramonster/join'))">Create one free</button>
+                <span class="muted">·</span> <button type="button" class="link-btn" @click="openURL(siteURL('/forgot-password'))">Forgot password?</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- what Pro is, always visible: recognition over recall -->
+        <div class="card">
+          <div class="card-head"><h2>What Pro adds</h2></div>
+          <div class="card-pad stack" style="gap:12px">
+            <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></span><div><b>Event Tracker</b><div class="small muted">Every event your app fires: its data, the listeners that ran, what it caused. Dispatch events yourself and export the flow as a PDF guide.</div></div></div>
+            <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-box"/></svg></span><div><b>Jobs & Queues</b><div class="small muted">What each job does and when it runs, in plain words. Run jobs, retry failures, start workers.</div></div></div>
+            <div class="small muted">Everything else in LaraMonster stays free. One computer at a time; signing in elsewhere signs this one out.</div>
+            <div class="actions"><button class="btn btn-orange btn-sm" x-show="!acct?.pro" @click="openURL(acct?.buy_url)">Get a license</button><button class="btn btn-ghost btn-sm" @click="openURL(acct?.account_url)">Your licenses</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PRO LOCK (shared by Events and Jobs) ============ -->
+    <template x-if="(page === 'events' || page === 'jobs') && (proLocked || (s && !s.pro))">
+      <section>
+        <div class="page-head"><div><h1 x-text="page === 'events' ? 'Events' : 'Jobs & Queues'"></h1><p>Part of LaraMonster Pro.</p></div></div>
+        <div class="card"><div class="empty" style="padding:56px 24px">
+          <div class="tile-icon tone-blue"><svg class="i"><use :href="page === 'events' ? '#i-zap' : '#i-box'"/></svg></div>
+          <h3 x-text="acct?.state === 'replaced' ? 'Signed in on another device' : acct?.state === 'expired' ? 'Your license has expired' : acct?.state === 'offline' ? 'Connect to check your license' : (page === 'events' ? 'See every event your app fires' : 'Know what every job does, and when')"></h3>
+          <p x-text="['replaced', 'expired', 'offline', 'revoked', 'admin'].includes(acct?.state) ? acct.message : (page === 'events' ? 'The Event Tracker records events with their data, listeners and what they caused; dispatch them yourself and export guides as PDF.' : 'Jobs & Queues explains each job in plain words, shows its schedule, runs it, and manages queues and workers.')"></p>
+          <div class="actions" style="justify-content:center">
+            <button class="btn" @click="location.hash = 'account'" x-text="acct?.state === 'expired' ? 'Account' : 'Sign in'"></button>
+            <button class="btn btn-ghost" @click="openURL(acct?.buy_url)" x-text="acct?.state === 'expired' ? 'Renew' : 'Get a license'"></button>
+          </div>
+        </div></div>
+      </section>
+    </template>
+
+    <!-- ============ EVENTS (Pro) ============ -->
+    <section x-show="page === 'events' && s?.pro && !proLocked">
+      <div class="page-head">
+        <div><h1>Events</h1><p>What your Laravel app fires, with its data, listeners and what it caused.</p></div>
+        <div class="actions" x-show="proSites?.length">
+          <label class="row small muted" style="gap:8px">Site
+            <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
+          </label>
+          <div class="tabs" role="tablist">
+            <button role="tab" :class="{ on: ev.tab === 'live' }" @click="ev.tab = 'live'; loadTraces()">Recorded</button>
+            <button role="tab" :class="{ on: ev.tab === 'catalog' }" @click="ev.tab = 'catalog'; loadCatalog()">Catalog</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert error" style="margin-bottom:16px" x-show="proError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="proError"></div><button class="btn btn-sm btn-ghost" @click="openPro('events')">Try again</button></div>
+
+      <div class="card" x-show="proSites && !proSites.length"><div class="empty">
+        <div class="tile-icon tone-blue"><svg class="i"><use href="#i-globe"/></svg></div>
+        <h3>No Laravel sites yet</h3><p>The Event Tracker works on Laravel projects LaraMonster serves. Add one, or create a new Laravel project.</p>
+        <div class="actions" style="justify-content:center"><button class="btn" @click="openWizard()">New project</button><button class="btn btn-ghost" @click="location.hash = 'sites'">Sites</button></div>
+      </div></div>
+
+      <!-- recorded traces -->
+      <div x-show="proSite && ev.tab === 'live'">
+        <div class="track-bar card" :class="{ on: ev.tracking }">
+          <label class="switch"><input type="checkbox" :checked="ev.tracking" @change="setTracking($event.target.checked)" aria-label="Record events"><span></span></label>
+          <div class="grow"><b x-text="ev.tracking ? 'Recording ' + proSite : 'Recording is off for ' + proSite"></b>
+            <div class="small muted" x-text="ev.tracking ? 'Open ' + (proSiteInfo()?.url || 'the site') + ', run a command or a queue worker: each request, command and job shows up here with its events.' : 'Turn it on to record every request, command and queued job of this site. It only runs on your computer.'"></div></div>
+          <button class="btn btn-ghost btn-sm" x-show="ev.tracking" @click="openURL(proSiteInfo()?.url)"><svg class="i"><use href="#i-external"/></svg> Open site</button>
+          <button class="btn btn-danger btn-sm" x-show="ev.traces.length" @click="clearTraces()"><svg class="i"><use href="#i-trash"/></svg> Clear</button>
+        </div>
+
+        <div class="card pro-shell" :class="{ reading: !!ev.trace }">
+          <div class="pro-list">
+            <div class="mail-tools"><div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Filter by URL or event…" x-model="ev.q" aria-label="Filter traces"></div></div>
+            <div class="mail-items">
+              <template x-if="ev.loading && !ev.traces.length"><div style="padding:16px" class="stack"><div class="skeleton" style="width:60%"></div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div></template>
+              <template x-for="t in filteredTraces()" :key="t.id">
+                <button class="trace-item" :class="{ sel: ev.sel === t.id, failed: t.failed }" @click="openTrace(t.id)">
+                  <div class="row" style="gap:8px"><span class="kind-chip" :class="'k-' + t.kind" x-text="kindLabel(t.kind)"></span><span class="ellipsis grow trace-title" x-text="t.title"></span><span class="badge" :class="statusTone(t)" x-text="statusText(t)"></span></div>
+                  <div class="trace-meta"><span x-text="t.app_events.length ? t.app_events.map(n => n.split('\\').pop()).join(', ') : (t.kind === 'job' ? 'Queued job' : 'No app events') + (t.events ? ' · ' + t.events + ' framework event' + (t.events === 1 ? '' : 's') : '')" class="ellipsis"></span><span x-text="Math.round(t.duration) + ' ms · ' + ago(t.started_at)" style="flex:none"></span></div>
+                </button>
+              </template>
+              <div class="empty" x-show="!ev.loading && !filteredTraces().length">
+                <template x-if="ev.q"><div><h3>Nothing matches</h3><button class="btn btn-ghost btn-sm" @click="ev.q = ''">Clear filter</button></div></template>
+                <template x-if="!ev.q"><div><div class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></div>
+                  <h3 x-text="ev.tracking ? 'Waiting for events' : 'Nothing recorded yet'"></h3>
+                  <p x-text="ev.tracking ? 'Use ' + proSite + ' in your browser; requests that fire an event appear here within a few seconds.' : 'Turn recording on above, or dispatch an event from the Catalog tab.'"></p></div></template>
+              </div>
+            </div>
+          </div>
+
+          <div class="pro-detail">
+            <template x-if="!ev.trace"><div class="empty" style="margin:auto"><h3>Pick a trace</h3><p>Its events appear here as a timeline.</p></div></template>
+            <template x-if="ev.trace">
+              <div class="pro-detail-in">
+                <div class="mail-head">
+                  <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+                    <button class="btn btn-ghost btn-sm back-btn" @click="ev.trace = null; ev.sel = null"><svg class="i"><use href="#i-back"/></svg> Traces</button>
+                    <div class="actions">
+                      <button class="btn btn-ghost btn-sm" @click="exportGuide('trace', { trace: ev.trace.id }, ev)"><svg class="i"><use href="#i-download"/></svg> Export PDF</button>
+                    </div>
+                  </div>
+                  <h2 x-text="ev.trace.title"></h2>
+                  <div class="trace-facts">
+                    <span class="badge" :class="statusTone({ status: ev.trace.status, failed: !!ev.trace.exception })" x-text="statusText(ev.trace)"></span>
+                    <span x-text="Math.round(ev.trace.duration) + ' ms'"></span><span x-text="ev.trace.queries + ' queries'"></span><span x-text="bytes(ev.trace.memory)"></span>
+                    <span class="mono" x-show="ev.trace.route" x-text="ev.trace.route"></span>
+                  </div>
+                  <div class="alert error small" style="margin-top:10px" x-show="ev.trace.exception"><svg class="i"><use href="#i-alert"/></svg><div x-text="errLine(ev.trace.exception)"></div></div>
+                  <div class="alert success small" style="margin-top:10px" x-show="ev.exported"><svg class="i"><use href="#i-check"/></svg><div class="grow" x-text="'Saved ' + (ev.exported?.name || '')"></div><button class="btn btn-sm btn-ghost" @click="revealExport(ev.exported)">Open</button><button class="btn btn-sm btn-ghost" @click="revealExport(ev.exported, true)">Folder</button></div>
+                </div>
+                <div class="trace-body">
+                  <ol class="timeline" aria-label="Events in order">
+                    <template x-for="(e, i) in ev.trace.events" :key="i">
+                      <li><button class="tl-row" :class="{ sel: ev.ix === i, app: e.app, failed: !!e.exception }" @click="ev.ix = i" :style="'padding-inline-start:' + (12 + e.depth * 18) + 'px'">
+                        <span class="tl-name ellipsis"><span x-show="e.depth" class="muted">↳ </span><span x-text="e.name.split('\\').pop()"></span><span class="tl-ns" x-text="e.name.includes('\\') ? ' ' + e.name.split('\\').slice(0, -1).join('\\') : ''"></span></span>
+                        <span class="tl-bar"><i :style="barStyle(e)"></i></span>
+                        <span class="tl-time" x-text="(e.duration ?? 0).toFixed(2) + ' ms'"></span>
+                      </button></li>
+                    </template>
+                  </ol>
+                  <template x-if="traceEvent()">
+                    <div class="ev-detail">
+                      <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+                        <h3 class="mono" style="font-size:14px" x-text="traceEvent().name"></h3>
+                        <span class="small muted mono" x-text="traceEvent().source || ''"></span>
+                      </div>
+                      <div class="alert error small" x-show="traceEvent().exception"><svg class="i"><use href="#i-alert"/></svg><div x-text="errLine(traceEvent().exception)"></div></div>
+                      <template x-if="traceEvent().ran?.length || traceEvent().listeners?.length">
+                        <div>
+                          <div class="sub-head">Listeners <span class="muted" x-text="'(' + (traceEvent().ran?.length || 0) + ' ran)'"></span></div>
+                          <div class="ran-list">
+                            <template x-for="(l, j) in (traceEvent().ran?.length ? traceEvent().ran : traceEvent().listeners)" :key="j">
+                              <div class="ran-row" :class="{ failed: !!l.exception }">
+                                <span class="mono ellipsis grow" x-text="l.name"></span>
+                                <span class="badge badge-blue" x-show="l.queued">queued</span>
+                                <span class="small muted" x-show="l.duration !== undefined" x-text="(l.duration ?? 0).toFixed(2) + ' ms'"></span>
+                                <div class="ran-out small" x-show="l.exception" x-text="errLine(l.exception)"></div>
+                                <div class="ran-out small mono" x-show="l.result !== null && l.result !== undefined && !l.exception" x-text="'returned ' + JSON.stringify(l.result)"></div>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                      <div class="sub-head">Payload</div>
+                      <div class="jtree" x-html="jsonTree(traceEvent().payload)"></div>
+                      <template x-if="traceEvent().responses"><div><div class="sub-head">Responses</div><div class="jtree" x-html="jsonTree(traceEvent().responses)"></div></div></template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- catalog: every event class, dispatch it -->
+      <div class="card pro-shell" :class="{ reading: !!ev.cls && innerWidth <= 860 }" x-show="proSite && ev.tab === 'catalog'">
+        <div class="pro-list">
+          <div class="mail-tools"><div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Find an event…" x-model="ev.q" aria-label="Find an event"></div>
+            <button class="btn btn-ghost icon-btn" title="Reload from code" aria-label="Reload from code" @click="loadCatalog(true)"><svg class="i" :class="{ spin: ev.catLoading }"><use href="#i-refresh"/></svg></button></div>
+          <div class="mail-items">
+            <template x-if="ev.catLoading && !ev.catalog"><div style="padding:16px" class="stack"><div class="small muted">Loading the project…</div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div></template>
+            <template x-for="e in filteredCatalog()" :key="e.class">
+              <button class="trace-item" :class="{ sel: ev.cls === e.class }" @click="pickEvent(e.class)">
+                <div class="trace-title" x-text="shortClass(e.class)"></div>
+                <div class="trace-meta"><span class="ellipsis" x-text="e.doc || e.class"></span><span x-text="e.listeners.length + (e.listeners.length === 1 ? ' listener' : ' listeners')" style="flex:none"></span></div>
+              </button>
+            </template>
+            <div class="empty" x-show="ev.catalog && !filteredCatalog().length"><h3 x-text="ev.q ? 'Nothing matches' : 'No events found'"></h3><p x-show="!ev.q">LaraMonster looks in app/Events and at registered listeners. Create one with <code>php artisan make:event</code>.</p></div>
+          </div>
+        </div>
+        <div class="pro-detail">
+          <template x-if="!catEvent()"><div class="empty" style="margin:auto"><h3>Pick an event</h3><p>See its listeners and dispatch it with your own data.</p></div></template>
+          <template x-if="catEvent()">
+            <div class="pro-detail-in scroll-pad">
+              <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm back-btn" @click="ev.cls = null"><svg class="i"><use href="#i-back"/></svg> Events</button>
+                <button class="btn btn-ghost btn-sm" @click="exportGuide('event', { class: ev.cls, trace: ev.result?.trace?.id || '' }, ev)"><svg class="i"><use href="#i-download"/></svg> Export guide (PDF)</button>
+              </div>
+              <h2 style="font-size:20px;margin-top:6px" x-text="shortClass(catEvent().class)"></h2>
+              <p class="muted" x-text="catEvent().doc || catEvent().class"></p>
+              <div class="small mono muted" x-text="catEvent().file + ':' + catEvent().line"></div>
+              <div class="alert success small" x-show="ev.exported" style="margin-top:10px"><svg class="i"><use href="#i-check"/></svg><div class="grow" x-text="'Saved ' + (ev.exported?.name || '')"></div><button class="btn btn-sm btn-ghost" @click="revealExport(ev.exported)">Open</button><button class="btn btn-sm btn-ghost" @click="revealExport(ev.exported, true)">Folder</button></div>
+
+              <div class="sub-head">Listeners, in order</div>
+              <div class="ran-list">
+                <template x-for="(l, j) in catEvent().listeners" :key="j"><div class="ran-row"><span class="mono ellipsis grow" x-text="(j + 1) + '. ' + l.name"></span><span class="badge badge-blue" x-show="l.queued" x-text="'queued' + (l.queue ? ' · ' + l.queue : '')"></span></div></template>
+                <div class="small muted" x-show="!catEvent().listeners.length">Nothing listens to it yet, so dispatching it changes nothing.</div>
+              </div>
+              <template x-if="catEvent().from?.length"><div><div class="sub-head">Dispatched from</div>
+                <template x-for="f in catEvent().from" :key="f.file + f.line"><div class="loc-row"><span class="mono small" x-text="f.file + ':' + f.line"></span><code class="ellipsis" x-text="f.code"></code></div></template></div></template>
+
+              <div class="sub-head row" style="justify-content:space-between">Dispatch it
+                <div class="tabs"><button :class="{ on: ev.mode === 'form' }" @click="ev.mode = 'form'">Form</button><button :class="{ on: ev.mode === 'raw' }" @click="ev.mode = 'raw'">PHP</button></div></div>
+              <div class="param-form" x-show="ev.mode === 'form'">
+                <template x-for="p in catEvent().params" :key="p.name">
+                  <label class="field"><span class="row" style="justify-content:space-between"><span class="mono" x-text="'$' + p.name"></span><small x-text="paramHint(p)"></small></span>
+                    <template x-if="p.kind === 'bool'"><span class="switch"><input type="checkbox" x-model="ev.form[p.name]"><span></span></span></template>
+                    <template x-if="p.kind === 'enum'"><select x-model="ev.form[p.name]"><option value="">—</option><template x-for="c in p.enum.cases" :key="c"><option :value="c" x-text="c"></option></template></select></template>
+                    <template x-if="p.kind === 'array'"><textarea class="mono" rows="3" x-model="ev.form[p.name]" :placeholder="p.optional ? JSON.stringify(p.default) : '[]'"></textarea></template>
+                    <template x-if="!['bool', 'enum', 'array'].includes(p.kind)"><input :type="paramInput(p)" :step="p.kind === 'float' ? 'any' : null" x-model="ev.form[p.name]" :disabled="p.kind === 'object'" :placeholder="p.kind === 'model' ? 'e.g. 1' : (p.optional ? String(p.default ?? '') : '')"></template>
+                  </label>
+                </template>
+                <div class="small muted" x-show="!catEvent().params.length">No constructor parameters.</div>
+              </div>
+              <div x-show="ev.mode === 'raw'">
+                <textarea class="mono code-input" rows="4" x-model="ev.raw" :placeholder="'new \\' + catEvent().class + '(…)'" spellcheck="false"></textarea>
+                <div class="small muted">Any PHP that returns the event, e.g. <code x-text="'new \\' + catEvent().class + '(User::first(), …)'"></code>. It runs in your project.</div>
+              </div>
+              <div class="actions" style="margin-top:12px"><button class="btn" :disabled="ev.running" @click="dispatchEvent()"><svg class="i" :class="{ spin: ev.running }"><use :href="ev.running ? '#i-loader' : '#i-play'"/></svg> Dispatch</button><span class="small muted">Runs the listeners in your project, like the app would.</span></div>
+
+              <template x-if="ev.result">
+                <div class="run-result" :class="ev.result.ok ? 'ok' : 'failed'">
+                  <div class="row" style="justify-content:space-between;flex-wrap:wrap"><b x-text="ev.result.ok ? 'Dispatched in ' + ev.result.duration + ' ms' : 'It failed'"></b>
+                    <button class="btn btn-ghost btn-sm" x-show="ev.result.trace?.id" @click="showResultTrace()">Open as trace</button></div>
+                  <div class="small" x-show="ev.result.error" x-text="errLine(ev.result.error)"></div>
+                  <pre class="joblog" x-show="ev.result.error?.trace?.length" x-text="(ev.result.error?.trace || []).join('\n')"></pre>
+                  <div x-show="resultRows(ev.result).length"><div class="sub-head">What it caused</div>
+                    <template x-for="(e, i) in resultRows(ev.result)" :key="i"><div class="ran-row" :style="'padding-inline-start:' + (8 + e.depth * 16) + 'px'"><span class="mono ellipsis grow" x-text="(e.depth ? '↳ ' : '') + e.name"></span><span class="small muted" x-text="(e.duration ?? 0).toFixed(2) + ' ms'"></span></div></template></div>
+                  <template x-if="ev.result.responses && ev.result.responses.some && ev.result.responses.some(r => r !== null)"><div><div class="sub-head">Listener responses</div><div class="jtree" x-html="jsonTree(ev.result.responses)"></div></div></template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ JOBS & QUEUES (Pro) ============ -->
+    <section x-show="page === 'jobs' && s?.pro && !proLocked">
+      <div class="page-head">
+        <div><h1>Jobs &amp; Queues</h1><p>What each job does and when it runs, in plain words. Run them, and keep queues moving.</p></div>
+        <div class="actions" x-show="proSites?.length">
+          <label class="row small muted" style="gap:8px">Site
+            <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
+          </label>
+          <div class="tabs" role="tablist">
+            <button role="tab" :class="{ on: jb.tab === 'jobs' }" @click="jb.tab = 'jobs'; loadJobs()">Jobs</button>
+            <button role="tab" :class="{ on: jb.tab === 'queues' }" @click="jb.tab = 'queues'; loadQueues()">Queues <span class="count" x-show="jb.queues && (totalWaiting() || jb.queues.failed?.length)" x-text="totalWaiting() + (jb.queues?.failed?.length ? ' · ' + jb.queues.failed.length + ' failed' : '')"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert error" style="margin-bottom:16px" x-show="proError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="proError"></div><button class="btn btn-sm btn-ghost" @click="openPro('jobs')">Try again</button></div>
+      <div class="card" x-show="proSites && !proSites.length"><div class="empty"><h3>No Laravel sites yet</h3><p>Jobs & Queues works on Laravel projects LaraMonster serves.</p><button class="btn" @click="location.hash = 'sites'">Sites</button></div></div>
+
+      <!-- jobs -->
+      <div class="card pro-shell" :class="{ reading: !!jb.cls && innerWidth <= 860 }" x-show="proSite && jb.tab === 'jobs'">
+        <div class="pro-list">
+          <div class="mail-tools"><div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Find a job…" x-model="jb.q" aria-label="Find a job"></div>
+            <button class="btn btn-ghost icon-btn" title="Reload from code" aria-label="Reload from code" @click="loadJobs(true)"><svg class="i" :class="{ spin: jb.loading }"><use href="#i-refresh"/></svg></button></div>
+          <div class="mail-items">
+            <template x-if="jb.loading && !jb.data"><div style="padding:16px" class="stack"><div class="small muted">Reading the project…</div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div></template>
+            <template x-for="j in filteredJobs()" :key="j.class">
+              <button class="trace-item" :class="{ sel: jb.cls === j.class }" @click="pickJob(j.class)">
+                <div class="row" style="gap:8px"><span class="trace-title grow ellipsis" x-text="shortClass(j.class)"></span><span class="badge" x-show="j.analysis.schedule.length" title="Scheduled">⏱</span><span class="badge" x-show="!j.queued">sync</span></div>
+                <div class="trace-meta"><span class="ellipsis" x-text="j.analysis.summary"></span></div>
+              </button>
+            </template>
+            <div class="empty" x-show="jb.data && !filteredJobs().length"><h3 x-text="jb.q ? 'Nothing matches' : 'No jobs found'"></h3><p x-show="!jb.q">LaraMonster looks in app/Jobs and for classes that implement ShouldQueue. Create one with <code>php artisan make:job</code>.</p></div>
+          </div>
+        </div>
+        <div class="pro-detail">
+          <template x-if="!curJob()"><div class="empty" style="margin:auto"><h3>Pick a job</h3><p>See what it does, when it runs, and run it.</p></div></template>
+          <template x-if="curJob()">
+            <div class="pro-detail-in scroll-pad">
+              <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm back-btn" @click="jb.cls = null"><svg class="i"><use href="#i-back"/></svg> Jobs</button>
+                <button class="btn btn-ghost btn-sm" @click="exportGuide('job', { class: jb.cls }, jb)"><svg class="i"><use href="#i-download"/></svg> Export guide (PDF)</button>
+              </div>
+              <h2 style="font-size:20px;margin-top:6px" x-text="shortClass(curJob().class)"></h2>
+              <p class="job-summary" x-text="curJob().analysis.summary"></p>
+              <div class="small mono muted" x-text="curJob().file + ':' + curJob().line"></div>
+              <div class="alert success small" x-show="jb.exported" style="margin-top:10px"><svg class="i"><use href="#i-check"/></svg><div class="grow" x-text="'Saved ' + (jb.exported?.name || '')"></div><button class="btn btn-sm btn-ghost" @click="revealExport(jb.exported)">Open</button><button class="btn btn-sm btn-ghost" @click="revealExport(jb.exported, true)">Folder</button></div>
+
+              <div class="job-grid">
+                <div><div class="sub-head">What it does</div>
+                  <ul class="steps-list"><template x-for="st in curJob().analysis.does" :key="st.text"><li><svg class="i"><use :href="'#i-' + stepIcon(st.kind)"/></svg><span x-text="st.text"></span></li></template>
+                    <li x-show="!curJob().analysis.does.length" class="muted">Nothing LaraMonster recognises; read the code below.</li></ul>
+                  <div class="small muted" x-show="curJob().analysis.uses.length" x-text="'Uses: ' + curJob().analysis.uses.join(', ')"></div>
+                </div>
+                <div><div class="sub-head">When it runs</div>
+                  <ul class="steps-list"><template x-for="w in curJob().analysis.runs" :key="w"><li><svg class="i"><use href="#i-play"/></svg><span x-text="w"></span></li></template></ul>
+                  <template x-for="f in curJob().analysis.from" :key="f.file + f.line"><div class="loc-row"><span class="mono small" x-text="f.file + ':' + f.line"></span><code class="ellipsis" x-text="f.code"></code></div></template>
+                  <div class="sub-head">On the queue</div>
+                  <ul class="steps-list"><template x-for="q in curJob().analysis.queue" :key="q"><li><svg class="i"><use href="#i-check"/></svg><span x-text="q"></span></li></template></ul>
+                  <div class="alert small" x-show="curJob().analysis.warnings.length"><svg class="i"><use href="#i-alert"/></svg><div x-text="curJob().analysis.warnings.join(' ')"></div></div>
+                </div>
+              </div>
+
+              <div class="sub-head row" style="justify-content:space-between">Run it
+                <div class="tabs"><button :class="{ on: jb.mode === 'form' }" @click="jb.mode = 'form'">Form</button><button :class="{ on: jb.mode === 'raw' }" @click="jb.mode = 'raw'">PHP</button><button :class="{ on: jb.mode === 'artisan' }" @click="jb.mode = 'artisan'">Artisan</button></div></div>
+              <div class="param-form" x-show="jb.mode === 'form'">
+                <template x-for="p in curJob().params" :key="p.name">
+                  <label class="field"><span class="row" style="justify-content:space-between"><span class="mono" x-text="'$' + p.name"></span><small x-text="paramHint(p)"></small></span>
+                    <template x-if="p.kind === 'bool'"><span class="switch"><input type="checkbox" x-model="jb.form[p.name]"><span></span></span></template>
+                    <template x-if="p.kind === 'enum'"><select x-model="jb.form[p.name]"><option value="">—</option><template x-for="c in p.enum.cases" :key="c"><option :value="c" x-text="c"></option></template></select></template>
+                    <template x-if="p.kind === 'array'"><textarea class="mono" rows="3" x-model="jb.form[p.name]" :placeholder="p.optional ? JSON.stringify(p.default) : '[]'"></textarea></template>
+                    <template x-if="!['bool', 'enum', 'array'].includes(p.kind)"><input :type="paramInput(p)" :step="p.kind === 'float' ? 'any' : null" x-model="jb.form[p.name]" :disabled="p.kind === 'object'" :placeholder="p.kind === 'model' ? 'e.g. 1' : (p.optional ? String(p.default ?? '') : '')"></template>
+                  </label>
+                </template>
+                <div class="small muted" x-show="!curJob().params.length">No constructor parameters.</div>
+              </div>
+              <div x-show="jb.mode === 'raw'">
+                <textarea class="mono code-input" rows="4" x-model="jb.raw" :placeholder="'new \\' + curJob().class + '(…)'" spellcheck="false"></textarea>
+                <div class="small muted">Any PHP that returns the job. It runs in your project.</div>
+              </div>
+              <div x-show="jb.mode === 'artisan'">
+                <div class="row"><span class="mono muted">php artisan</span><input type="text" class="grow mono" x-model="jb.artisan" placeholder="queue:retry all" @keydown.enter="runArtisan()" spellcheck="false"></div>
+                <div class="actions" style="margin-top:12px"><button class="btn" :disabled="jb.running || !jb.artisan.trim()" @click="runArtisan()"><svg class="i" :class="{ spin: jb.running }"><use :href="jb.running ? '#i-loader' : '#i-play'"/></svg> Run command</button></div>
+                <pre class="joblog" x-show="jb.artisanOut" x-text="(jb.artisanOut?.output || '(no output)') + '\n— exit code ' + jb.artisanOut?.exit_code"></pre>
+              </div>
+              <div x-show="jb.mode !== 'artisan'">
+                <details class="opts"><summary class="small">Queue options</summary>
+                  <div class="grid grid-3" style="gap:10px;margin-top:8px">
+                    <label class="field">Queue <input type="text" x-model="jb.queue" :placeholder="curJob().settings.queue || 'its own'"></label>
+                    <label class="field">Connection <input type="text" x-model="jb.connection" :placeholder="jb.data?.default_connection"></label>
+                    <label class="field">Delay (seconds) <input type="number" min="0" x-model.number="jb.delay"></label>
+                  </div>
+                </details>
+                <div class="actions" style="margin-top:12px">
+                  <button class="btn" :disabled="jb.running" @click="runJob('sync')"><svg class="i" :class="{ spin: jb.running }"><use :href="jb.running ? '#i-loader' : '#i-play'"/></svg> Run now</button>
+                  <button class="btn btn-ghost" :disabled="jb.running || !curJob().queued" :title="curJob().queued ? 'Put it on the queue for a worker' : 'This job isn\'t queued'" @click="runJob('queue')">Queue it</button>
+                  <span class="small muted">Run now executes handle() here and shows what happened.</span>
+                </div>
+              </div>
+
+              <template x-if="jb.result">
+                <div class="run-result" :class="jb.result.ok ? 'ok' : 'failed'">
+                  <b x-text="jb.result.ok ? (jb.result.mode === 'queue' ? 'Queued' + (jb.result.id ? ' as job #' + jb.result.id : '') + '. A worker will run it.' : 'Ran in ' + jb.result.duration + ' ms') : 'It failed'"></b>
+                  <div class="small" x-show="jb.result.error" x-text="errLine(jb.result.error)"></div>
+                  <pre class="joblog" x-show="jb.result.error?.trace?.length" x-text="(jb.result.error?.trace || []).join('\n')"></pre>
+                  <pre class="joblog" x-show="jb.result.output" x-text="jb.result.output"></pre>
+                  <div x-show="resultRows(jb.result).filter(e => e.app || e.name.includes('Queue') || e.name.includes('Mail') || e.name.includes('Notification')).length"><div class="sub-head">What it caused</div>
+                    <template x-for="(e, i) in resultRows(jb.result)" :key="i"><div class="ran-row" x-show="e.app || e.name.includes('Queue') || e.name.includes('Mail') || e.name.includes('Notification')"><span class="mono ellipsis grow" x-text="e.name"></span><span class="small muted" x-text="(e.duration ?? 0).toFixed(2) + ' ms'"></span></div></template></div>
+                  <div class="small" x-show="jb.result.mode === 'queue' && jb.result.ok">No worker running? <button class="btn-link btn small" @click="jb.tab = 'queues'; loadQueues()">Start one in Queues</button></div>
+                </div>
+              </template>
+
+              <details class="opts" style="margin-top:16px"><summary class="small">The code it runs</summary><pre class="code-view" x-text="curJob().handle_source"></pre></details>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- queues -->
+      <div class="stack" x-show="proSite && jb.tab === 'queues'">
+        <div class="card">
+          <div class="card-head"><h2>Queues</h2>
+            <div class="actions">
+              <label class="row small muted" style="gap:8px">Connection
+                <select class="compact" x-model="jb.qConn" @change="loadQueues()"><option value="" x-text="'Default (' + (jb.queues?.default || '…') + ')'"></option><template x-for="c in (jb.queues?.connections || [])" :key="c.name"><option :value="c.name" x-text="c.name + ' · ' + c.driver"></option></template></select></label>
+              <button class="btn btn-ghost btn-sm" @click="loadQueues()" :disabled="jb.qLoading"><svg class="i" :class="{ spin: jb.qLoading }"><use href="#i-refresh"/></svg> Refresh</button>
+            </div>
+          </div>
+          <div class="card-pad small muted" x-show="jb.qLoading && !jb.queues">Reading queues…</div>
+          <div class="alert" style="margin:12px 22px" x-show="jb.queues?.driver === 'sync'"><svg class="i"><use href="#i-info"/></svg><div>This connection is <b>sync</b>: jobs run immediately when dispatched, so nothing waits here. Set <code>QUEUE_CONNECTION</code> in .env to use a real queue.</div></div>
+          <div class="alert error small" style="margin:12px 22px" x-show="jb.queues?.error"><svg class="i"><use href="#i-alert"/></svg><div x-text="errLine(jb.queues?.error)"></div></div>
+          <template x-for="q in (jb.queues?.queues || [])" :key="q.name">
+            <details class="queue-row">
+              <summary><span class="mono grow" x-text="q.name"></span><span class="badge" :class="q.size ? 'badge-orange' : 'badge-green'" x-text="q.size === null ? '—' : (q.size ? q.size + ' waiting' : 'empty')"></span>
+                <button class="btn btn-danger btn-sm" x-show="q.size" @click.prevent="queueAction('clear', { queue: q.name, connection: jb.qConn }, 'Delete the ' + q.size + ' jobs waiting on ' + q.name + '? They won\'t run.')">Clear</button></summary>
+              <div class="queue-jobs">
+                <template x-for="j in q.jobs" :key="j.id"><div class="ran-row"><span class="mono ellipsis grow" x-text="j.name"></span><span class="small muted" x-text="'attempts ' + j.attempts"></span><span class="small muted" x-show="j.created_at" x-text="ago(j.created_at)"></span><span class="badge badge-blue" x-show="j.reserved">running</span></div></template>
+                <div class="small muted" x-show="!q.jobs.length" x-text="q.size ? 'This driver doesn\'t let LaraMonster list the jobs.' : 'Nothing waiting.'"></div>
+              </div>
+            </details>
+          </template>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Failed jobs</h2>
+            <div class="actions" x-show="jb.queues?.failed?.length">
+              <button class="btn btn-sm" @click="queueAction('retry-all', {})">Retry all</button>
+              <button class="btn btn-danger btn-sm" @click="queueAction('flush', {}, 'Delete every failed job? This can\'t be undone.')">Delete all</button>
+            </div></div>
+          <template x-for="f in (jb.queues?.failed || [])" :key="f.id">
+            <div class="list-item failed-row">
+              <div class="grow" style="min-width:0"><div class="row" style="gap:8px"><b class="mono" x-text="shortClass(f.name)"></b><span class="small muted" x-text="(f.queue || '') + (f.failed_at ? ' · ' + ago(f.failed_at) : '')"></span></div>
+                <div class="small failed-msg ellipsis" :title="f.exception" x-text="f.exception"></div></div>
+              <button class="btn btn-sm" @click="queueAction('retry', { id: f.id })">Retry</button>
+              <button class="btn btn-ghost btn-sm" @click="queueAction('forget', { id: f.id }, 'Delete this failed job?')">Forget</button>
+            </div>
+          </template>
+          <div class="empty" style="padding:24px" x-show="jb.queues && !jb.queues.failed?.length"><p style="margin:0">No failed jobs. 🎉</p></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Workers</h2><span class="sub">Run by LaraMonster; they stop when it stops</span></div>
+          <template x-for="w in (jb.queues?.workers || [])" :key="w.id">
+            <div>
+              <div class="list-item">
+                <i class="dot" :class="w.running ? 'on pulse' : 'off'"></i>
+                <div class="grow" style="min-width:0"><b class="mono" x-text="w.queue"></b><div class="small muted" x-text="(w.connection || 'default connection') + ' · tries ' + w.tries + ' · started ' + ago(w.started) + (w.exit_error ? ' · stopped: ' + w.exit_error : '')"></div></div>
+                <button class="btn btn-ghost btn-sm" @click="showWorkerLog(w.id)" x-text="jb.logId === w.id ? 'Hide log' : 'Log'"></button>
+                <button class="btn btn-danger btn-sm" x-show="w.running" @click="stopWorker(w.id)">Stop</button>
+              </div>
+              <pre class="logs" style="height:220px;border-radius:0" x-show="jb.logId === w.id" x-text="(jb.log || []).join('\n') || '(no output yet)'"></pre>
+            </div>
+          </template>
+          <div class="card-pad">
+            <div class="row" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+              <label class="field grow">Queues, in priority order <input type="text" class="mono" x-model="jb.workerQueue" placeholder="default"></label>
+              <label class="field" style="width:110px">Tries <input type="number" min="1" x-model.number="jb.workerTries"></label>
+              <button class="btn" @click="startWorker()"><svg class="i"><use href="#i-play"/></svg> Start worker</button>
+            </div>
+            <div class="small muted" style="margin-top:8px">Runs <code x-text="'php artisan queue:work ' + (jb.qConn || '') + ' --queue=' + (jb.workerQueue || 'default') + ' --tries=' + (jb.workerTries || 1)"></code>. With Events recording on, each job it runs appears in Events.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MONITOR ============ -->
+    <section x-show="page === 'monitor'">
+      <div class="page-head">
+        <div><h1>Monitor</h1><p>What LaraMonster uses on this computer, live, and what to switch off when things get heavy.</p></div>
+        <span class="badge" x-show="mon?.warm"><i class="dot on pulse"></i> Live · every 2 s</span>
+      </div>
+
+      <div class="alert error" x-show="monError" style="margin-bottom:16px"><svg class="i"><use href="#i-alert"/></svg><div x-text="monError"></div></div>
+      <div class="card card-pad small muted" x-show="!mon && !monError">Measuring…</div>
+
+      <template x-if="mon">
+      <div class="stack">
+        <!-- recommendations -->
+        <div class="card" x-show="mon.recommendations.length">
+          <div class="card-head"><h2>Recommendations</h2><span class="sub" x-text="mon.recommendations.length + (mon.recommendations.length === 1 ? ' suggestion' : ' suggestions')"></span></div>
+          <template x-for="r in mon.recommendations" :key="r.id">
+            <div class="rec" :class="r.level">
+              <div class="rec-icon"><svg class="i"><use :href="'#i-' + recIcon(r)"/></svg></div>
+              <div class="grow" style="min-width:0">
+                <div class="rec-title"><span class="rec-level" x-text="recLabel(r)"></span><b x-text="r.title"></b></div>
+                <div class="small muted" x-text="r.detail"></div>
+              </div>
+              <div class="actions rec-actions">
+                <template x-for="(a, i) in r.actions || []" :key="a.label">
+                  <button class="btn btn-sm" :class="i === 0 && a.kind !== 'site' ? '' : 'btn-ghost'" @click="recDo(a)" x-text="a.label"></button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="alert success" x-show="mon.warm && !mon.recommendations.length"><svg class="i"><use href="#i-check"/></svg><div><b>Everything looks healthy.</b> Nothing is using an unusual amount of CPU or memory.</div></div>
+
+        <!-- KPI tiles -->
+        <div class="grid grid-4">
+          <template x-for="t in [
+              { key: 'mem', label: 'LaraMonster memory', value: bytes(mon.mem), sub: pct(100 * mon.mem / mon.system.mem_total) + ' of ' + bytes(mon.system.mem_total) + ' RAM' },
+              { key: 'cpu', label: 'LaraMonster CPU', value: pct(mon.cpu), sub: 'of ' + mon.system.cpus + ' CPU cores · ' + mon.procs + ' processes' },
+              { key: 'sys_mem', label: 'Computer memory', value: bytes(mon.system.mem_used), sub: 'used of ' + bytes(mon.system.mem_total) + (mon.system.swap_used > 64 << 20 ? ' · ' + bytes(mon.system.swap_used) + ' swap' : '') },
+              { key: 'sys_cpu', label: 'Computer CPU', value: pct(mon.system.cpu), sub: mon.system.load1 ? 'load ' + mon.system.load1.toFixed(2) : 'all programs' },
+            ]" :key="t.key">
+            <div class="card kpi">
+              <span class="kpi-label" x-text="t.label"></span>
+              <b class="kpi-value" x-text="t.value"></b>
+              <span class="kpi-sub" x-text="t.sub"></span>
+              <div class="spark" @pointermove="sparkHover(t.key, $event)" @pointerleave="spark = { key: '', i: -1 }" role="img" :aria-label="t.label + ' over the last 3 minutes'">
+                <svg viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true">
+                  <path class="spark-area" :d="sparkPath(t.key, 200, 44, true)"/>
+                  <path class="spark-line" :d="sparkPath(t.key, 200, 44, false)"/>
+                </svg>
+                <template x-if="sparkPoint(t.key)">
+                  <div><i class="spark-cross" :style="'left:' + sparkPoint(t.key).left + '%'"></i>
+                  <span class="spark-tip" :style="'left:' + Math.min(78, Math.max(22, sparkPoint(t.key).left)) + '%'" x-text="sparkPoint(t.key).text"></span></div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- what uses resources -->
+        <div class="card">
+          <div class="card-head"><h2>What's using resources</h2><span class="sub">CPU is a share of the whole computer</span></div>
+          <div class="res-head"><span>Part</span><span>CPU</span><span>Memory</span><span style="text-align:right">Actions</span></div>
+          <template x-for="g in mon.groups" :key="g.id">
+            <div class="res-row">
+              <div class="row" style="min-width:0">
+                <div class="tile-icon res-icon" :class="g.kind === 'server' ? 'tone-orange' : 'tone-blue'"><svg class="i"><use :href="'#i-' + groupIcon(g)"/></svg></div>
+                <div style="min-width:0">
+                  <b class="ellipsis" style="display:block;color:var(--title)" x-text="g.kind === 'server' ? g.name + ' (your server)' : g.name"></b>
+                  <span class="small muted" x-text="g.procs + (g.procs === 1 ? ' process' : ' processes') + (g.kind === 'php' ? ' · serves ' + g.sites + (g.sites === 1 ? ' site' : ' sites') : '')"></span>
+                </div>
+              </div>
+              <div class="meter-cell"><span class="cell-label">CPU</span><div class="meter" :title="pct(g.cpu) + ' (30 s average ' + pct(g.cpu_avg) + ')'"><i :style="'width:' + Math.max(1.5, 100 * g.cpu / groupMax('cpu')) + '%'"></i></div><span class="meter-val" x-text="pct(g.cpu)"></span></div>
+              <div class="meter-cell"><span class="cell-label">Memory</span><div class="meter" :title="bytes(g.mem)"><i :style="'width:' + Math.max(1.5, 100 * g.mem / groupMax('mem')) + '%'"></i></div><span class="meter-val" x-text="bytes(g.mem)"></span></div>
+              <div class="actions" style="justify-content:flex-end;flex-wrap:nowrap">
+                <button class="btn btn-ghost btn-sm" x-show="g.kind === 'service'" @click="recDo({ kind: 'stop-service', service: g.ref })">Stop</button>
+                <button class="btn btn-ghost btn-sm" x-show="g.kind === 'php'" @click="location.hash = 'sites'">Sites</button>
+                <button class="btn btn-ghost btn-sm" x-show="g.kind === 'server'" @click="openSiteByName(g.ref)">Settings</button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- busiest sites -->
+        <div class="card">
+          <div class="card-head"><h2>Busiest sites</h2><span class="sub">Requests in the last minute</span></div>
+          <div class="small muted" style="padding:12px 22px 0" x-show="mon.site_load_note" x-text="mon.site_load_note"></div>
+          <template x-if="!mon.sites.length">
+            <div class="empty" style="padding:28px 24px"><h3>All quiet</h3><p>No site got a request in the last minute. Open one in your browser and it shows up here.</p></div>
+          </template>
+          <template x-if="mon.sites.length">
+            <div>
+              <div class="load-head"><span>Site</span><span>CPU</span><span>Requests / min</span><span>Now</span><span style="text-align:right">Actions</span></div>
+              <template x-for="l in mon.sites" :key="l.name">
+                <div class="load-row">
+                  <div style="min-width:0"><button class="site-open" @click="openSiteByName(l.name)" x-text="l.name"></button>
+                    <div class="small muted mono ellipsis" :title="l.uri" x-text="l.uri || '—'"></div></div>
+                  <div class="meter-cell"><span class="cell-label">CPU</span><div class="meter"><i :style="'width:' + Math.max(1.5, 100 * l.cpu / Math.max(...mon.sites.map(x => x.cpu), 0.0001)) + '%'"></i></div><span class="meter-val" x-text="pct(l.cpu)"></span></div>
+                  <div><span class="cell-label">Requests</span><span x-text="l.requests"></span></div>
+                  <div><span class="cell-label">Now</span>
+                    <span x-show="!l.running" class="muted">idle</span>
+                    <span x-show="l.running" :class="l.longest >= 30 ? 'text-danger' : ''" x-text="l.running + ' running · ' + (l.longest < 1 ? '<1' : Math.round(l.longest)) + ' s'"></span></div>
+                  <div class="actions" style="justify-content:flex-end;flex-wrap:nowrap">
+                    <button class="btn btn-ghost btn-sm" @click="siteOff(l.name)">Switch off</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+      </template>
+    </section>
+
+    <!-- ============ LOGS ============ -->
+    <section x-show="page === 'logs'">
+      <div class="page-head">
+        <div><h1>Logs</h1><p>Output of LaraMonster, PHP and services. Refreshes every few seconds.</p></div>
+        <div class="actions">
+          <select class="compact" x-model="logName" @change="loadLog()" style="min-width:200px" aria-label="Log file">
+            <template x-for="n in logNames" :key="n"><option :value="n" x-text="n" :selected="n === logName"></option></template>
+          </select>
+          <button class="btn btn-ghost icon-btn" @click="loadLog()" aria-label="Refresh log"><svg class="i"><use href="#i-refresh"/></svg></button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2 class="mono" x-text="logName ? logName + '.log' : 'No logs yet'"></h2><span class="sub" x-text="logLines.length + ' lines'"></span></div>
+        <pre class="logs" x-ref="logbox"><template x-for="(l, i) in logLines" :key="i"><div :class="logClass(l)" x-text="l"></div></template></pre>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section x-show="page === 'settings'">
+      <div class="page-head"><div><h1>Settings</h1><p>Domains, ports, HTTPS and your editor.</p></div></div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-head"><h2>General</h2></div>
+          <div class="card-pad stack">
+            <label class="field">Top-level domain
+              <input type="text" x-model="form.tld">
+              <small><code>localhost</code> works with no setup. <code>test</code> needs the DNS step on the right.</small>
+            </label>
+            <div class="grid grid-2">
+              <label class="field">HTTP port <input type="number" x-model.number="form.http_port"></label>
+              <label class="field">HTTPS port <input type="number" x-model.number="form.https_port"></label>
+            </div>
+            <label class="field">DNS port <input type="number" x-model.number="form.dns_port"><small>Built-in resolver for *.<span x-text="form.tld"></span> (not used for localhost)</small></label>
+            <label class="field">Editor command <input type="text" x-model="form.editor" placeholder="code"><small>Used by “Open in editor”: code, phpstorm, cursor, zed, subl…</small></label>
+            <div class="hint" x-show="form.http_port < 1024 || form.https_port < 1024">Ports below 1024 need extra permission on Linux: <code>sudo setcap cap_net_bind_service=+ep $(which laramonster)</code></div>
+            <div><button class="btn" @click="saveSettings()">Save settings</button></div>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2>HTTPS certificates</h2>
+              <span class="badge" :class="tlsOK() ? 'badge-green' : 'badge-orange'" x-text="tlsOK() ? 'Trusted' : 'Needs trust'"></span></div>
+            <div class="card-pad stack">
+              <div class="small">LaraMonster has its own certificate authority. Trust it once and every secured site gets a valid padlock.</div>
+              <div class="stack" style="gap:8px">
+                <div class="row small"><i class="dot" :class="s.tls.trusted ? 'on' : 'off'"></i><span class="grow">System (curl, PHP, Chrome on macOS/Windows)</span><b x-text="s.tls.trusted ? 'Trusted' : 'Not trusted'"></b></div>
+                <div class="row small" x-show="s.tls.browsers !== 'system'"><i class="dot" :class="s.tls.browsers === 'trusted' ? 'on' : 'off'"></i><span class="grow">Browsers (Firefox, Chrome on Linux)</span><b x-text="browserText()"></b></div>
+              </div>
+              <div class="alert info small" x-show="s.tls.browsers === 'missing-certutil'"><svg class="i"><use href="#i-info"/></svg><div>Browsers need <b>certutil</b> to learn about the certificate. <a href="#tools">Install “Browser certificate tools”</a>, then trust again.</div></div>
+              <div class="hint" x-show="tlsOK()">Still seeing a warning? Restart your browser once; it reads certificates on startup.</div>
+              <div class="actions"><button class="btn btn-sm" :disabled="!s.tls.exists || trusting" @click="trustCA()"><svg class="i" :class="{ spin: trusting }"><use :href="trusting ? '#i-loader' : '#i-shield'"/></svg> <span x-text="tlsOK() ? 'Trust again' : 'Trust certificate authority'"></span></button><span class="small muted">asks for your password</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Domains (DNS)</h2>
+              <span class="badge" :class="s.dns.working ? 'badge-green' : 'badge-orange'" x-text="s.dns.working ? 'Working' : 'Needs setup'"></span></div>
+            <div class="card-pad stack">
+              <div class="small" x-text="dnsText()"></div>
+              <div x-show="s.dns.hint" class="small muted" x-text="s.dns.hint"></div>
+              <div class="actions" x-show="s.dns.method !== 'none'"><button class="btn btn-sm" @click="dnsSetup()" x-text="s.dns.method === 'hosts' ? 'Sync hosts file' : 'Configure DNS'"></button><span class="small muted">asks for your password</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Browser access</h2></div>
+            <div class="card-pad stack">
+              <div class="opt-row"><div class="grow"><b style="color:var(--title)">Browser dashboard</b><div class="small muted">Also manage LaraMonster from a browser tab. Useful without the desktop app.</div></div><label class="switch"><input type="checkbox" :checked="s.config.browser_dashboard" @change="setBrowserDashboard($event.target.checked)" aria-label="Browser dashboard"><span></span></label></div>
+              <div class="row small" x-show="s.dashboard_url"><span class="muted">Address</span><a class="grow ellipsis mono" style="text-align:right" :href="s.dashboard_url" target="_blank" rel="noopener" x-text="s.dashboard_url"></a></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>About</h2></div>
+            <div class="card-pad small stack" style="gap:6px">
+              <div class="row"><span class="grow muted">Version</span><b x-text="s.version"></b></div>
+              <div class="row"><span class="muted">Home</span><span class="grow mono ellipsis" style="text-align:right" x-text="s.home" :title="s.home"></span></div>
+              <div class="row" style="margin-top:8px"><button class="btn btn-sm btn-ghost" @click="openOnboard()"><svg class="i"><use href="#i-refresh"/></svg> Run setup again</button><button class="btn btn-sm btn-danger" @click="stopEngine()"><svg class="i"><use href="#i-power"/></svg> Stop LaraMonster</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </div>
+    </template>
+  </main>
+</div>
+
+<!-- ============ SITE PANEL ============ -->
+<div class="modal-back" x-show="panel.open" x-cloak @click.self="closeSitePanel()" x-transition.opacity @keydown.window="panelKeys($event)">
+  <template x-if="panel.open && panelSite()">
+  <div class="card modal site-panel" role="dialog" aria-modal="true" aria-labelledby="sp-title">
+    <div class="card-head">
+      <div style="min-width:0">
+        <h2 id="sp-title" class="row" style="gap:8px"><i class="dot" :class="healthDot(panelSite())"></i><span class="ellipsis" x-text="panelSite().name"></span><span class="badge badge-blue" x-show="panelSite().laravel">Laravel</span></h2>
+        <div class="small muted ellipsis" x-text="healthText(panelSite())"></div>
+      </div>
+      <button class="btn btn-ghost icon-btn" @click="closeSitePanel()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sp-tabs">
+      <div class="tabs" role="tablist">
+        <button role="tab" :aria-selected="panel.tab === 'general'" :class="{ on: panel.tab === 'general' }" @click="setPanelTab('general')">General</button>
+        <button role="tab" :aria-selected="panel.tab === 'env'" :class="{ on: panel.tab === 'env' }" @click="setPanelTab('env')">Environment <span class="count" x-show="envChangeCount()" x-text="envChangeCount()"></span></button>
+      </div>
+    </div>
+
+    <!-- General -->
+    <div class="modal-body card-pad" x-show="panel.tab === 'general'">
+      <div class="sp-section">
+        <div class="opt-row" style="padding-top:0">
+          <div class="grow"><b class="sp-label">Active</b>
+            <div class="small muted" x-text="panelSite().enabled ? 'LaraMonster serves this site at ' + panelSite().url : 'Switched off: the address shows a “switched off” page. Settings are kept.'"></div></div>
+          <label class="switch"><input type="checkbox" :checked="panelSite().enabled" @change="toggleSite(panelSite(), $event.target.checked)" aria-label="Active"><span></span></label>
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <b class="sp-label">Address</b>
+        <div class="input-addon">
+          <input type="text" class="mono" x-model="panel.addr" @keydown.enter="panel.addr !== panelSite().name && saveAddress()" spellcheck="false" autocomplete="off" aria-label="Site address">
+          <span class="mono" x-text="addrSuffix(panelSite())"></span>
+        </div>
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+          <div class="small muted" x-show="panel.addr === panelSite().name">Change it to open this project at another address. Works the same whichever server answers.</div>
+          <div class="small muted" x-show="panel.addr !== panelSite().name">New address: <b class="mono" x-text="panelSite().url.replace('://' + panelSite().name, '://' + (panel.addr || '…').toLowerCase())"></b><span x-show="panelSite().laravel">. APP_URL is updated if it pointed at the old address.</span></div>
+          <div class="actions" x-show="panel.addr !== panelSite().name">
+            <button class="btn btn-ghost btn-sm" @click="panel.addr = panelSite().name">Cancel</button>
+            <button class="btn btn-sm" :disabled="!panel.addr.trim() || !!panel.busy" @click="saveAddress()"><svg class="i spin" x-show="panel.busy === 'addr'"><use href="#i-loader"/></svg> Change address</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <b class="sp-label">Served by</b>
+        <div class="choice-grid sp-choices">
+          <button class="choice" :class="{ on: panel.mode === 'php' }" @click="panel.mode = 'php'">
+            <b>LaraMonster</b><small x-text="'PHP ' + (panelSite().php || s.default_php || '—') + ' runs the files in ' + (panelSite().root === panelSite().path ? 'the project folder' : panelSite().root.slice(panelSite().path.length + 1) + '/')"></small>
+          </button>
+          <button class="choice" :class="{ on: panel.mode === 'proxy' }" @click="panel.mode = 'proxy'">
+            <b>Your own server</b><small>Node, Vite, php artisan serve, php -S, Apache… LaraMonster forwards the address to it.</small>
+          </button>
+        </div>
+        <template x-if="panel.mode === 'proxy'">
+          <div class="stack" style="gap:10px">
+            <label class="field">Where your server runs
+              <input type="text" class="mono" x-model="panel.target" @keydown.enter="saveServedBy()" placeholder="http://127.0.0.1:3000" spellcheck="false" autocomplete="off">
+            </label>
+            <div class="row small" style="flex-wrap:wrap;gap:6px"><span class="muted">Common:</span>
+              <template x-for="c in [['Vite', 'http://127.0.0.1:5173'], ['artisan serve', 'http://127.0.0.1:8000'], ['Node / Next', 'http://127.0.0.1:3000'], ['Apache', 'http://' + panelSite().name + '.test']]" :key="c[0]">
+                <button class="chip-btn" @click="panel.target = c[1]" x-text="c[0]"></button>
+              </template>
+            </div>
+            <div class="hint">You start your server as usual; LaraMonster only forwards <b x-text="panelSite().url"></b> to it. For an Apache virtual host, enter its name (like <code x-text="'http://' + panelSite().name + '.test'"></code>) so Apache picks the right one.</div>
+            <div class="alert small" :class="panelSite().health === 'up' ? 'success' : 'error'" x-show="panelSite().proxy && panelSite().proxy === panel.target.trim()">
+              <svg class="i"><use :href="panelSite().health === 'up' ? '#i-check' : '#i-alert'"/></svg><div x-text="healthText(panelSite())"></div>
+            </div>
+          </div>
+        </template>
+        <div class="actions" x-show="servedByChanged()" style="justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" @click="panel.mode = panelSite().proxy ? 'proxy' : 'php'; panel.target = panelSite().proxy || ''">Cancel</button>
+          <button class="btn btn-sm" :disabled="!!panel.busy" @click="saveServedBy()"><svg class="i spin" x-show="panel.busy === 'proxy'"><use href="#i-loader"/></svg> Save</button>
+        </div>
+      </div>
+
+      <div class="sp-section">
+        <b class="sp-label">Folder</b>
+        <div class="row"><span class="grow mono ellipsis small" :title="panelSite().path" x-text="panelSite().path"></span>
+          <button class="btn btn-ghost btn-sm" @click="openSite(panelSite(), 'folder')"><svg class="i"><use href="#i-folder"/></svg> Open</button>
+          <button class="btn btn-ghost btn-sm" @click="openSite(panelSite(), 'editor')"><svg class="i"><use href="#i-code"/></svg> Editor</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Environment -->
+    <div class="modal-body env-body" x-show="panel.tab === 'env'">
+      <div class="card-pad" x-show="env.loading && !env.file"><span class="small muted">Loading .env…</span></div>
+
+      <template x-if="env.file && !env.file.exists">
+        <div class="empty">
+          <div class="tile-icon"><svg class="i"><use href="#i-file"/></svg></div>
+          <h3>No .env file yet</h3>
+          <p x-text="env.file.example ? 'Start from the project’s .env.example, then adjust the values here.' : 'Create an empty .env and add your variables here.'"></p>
+          <button class="btn" @click="createEnv()" x-text="env.file.example ? 'Create from .env.example' : 'Create .env'"></button>
+        </div>
+      </template>
+
+      <template x-if="env.file && env.file.exists">
+        <div>
+          <div class="env-toolbar">
+            <div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search variables…" x-model="env.q" aria-label="Search variables" :disabled="env.view === 'raw'"></div>
+            <div class="tabs">
+              <button :class="{ on: env.view === 'vars' }" @click="setEnvView('vars')">Variables</button>
+              <button :class="{ on: env.view === 'raw' }" @click="setEnvView('raw')">Raw file</button>
+            </div>
+            <button class="btn btn-ghost btn-sm" x-show="env.view === 'vars'" @click="env.adding = true; $nextTick(() => $refs.newKey?.focus())"><svg class="i"><use href="#i-plus"/></svg> Add</button>
+          </div>
+
+          <div class="env-alerts">
+            <div class="alert small" x-show="env.file.config_cached"><svg class="i"><use href="#i-alert"/></svg>
+              <div class="grow">Laravel is using cached config, so changes here won’t apply until the cache is cleared.</div>
+              <button class="btn btn-sm" @click="clearConfigCache()">Clear cache</button></div>
+            <div class="alert error small" x-show="env.view === 'vars' && envMissingKey()"><svg class="i"><use href="#i-alert"/></svg>
+              <div class="grow"><b>APP_KEY is empty.</b> Laravel won’t start without it.</div>
+              <button class="btn btn-sm" @click="generateAppKey(env.lines.find(l => l.t === 'var' && !l.deleted && l.key === 'APP_KEY'))">Generate key</button></div>
+          </div>
+
+          <template x-if="env.view === 'vars'">
+            <div class="env-vars">
+              <div class="env-row env-new" x-show="env.adding">
+                <input type="text" class="mono" x-ref="newKey" x-model="env.newKey" placeholder="NEW_VARIABLE" @keydown.enter="addEnvVar()" @keydown.escape.stop="env.adding = false" spellcheck="false" aria-label="Variable name">
+                <input type="text" class="mono" x-model="env.newVal" placeholder="value" @keydown.enter="addEnvVar()" @keydown.escape.stop="env.adding = false" spellcheck="false" aria-label="Value">
+                <div class="actions" style="flex-wrap:nowrap"><button class="btn btn-sm" @click="addEnvVar()">Add</button><button class="btn btn-ghost icon-btn" @click="env.adding = false" aria-label="Cancel"><svg class="i"><use href="#i-x"/></svg></button></div>
+              </div>
+              <template x-for="g in envGroups()" :key="g.name">
+                <div class="env-group">
+                  <div class="env-group-head" x-text="g.name"></div>
+                  <template x-for="l in g.lines" :key="l.id">
+                    <div class="env-row" :class="{ changed: envChanged(l) }">
+                      <label class="env-key mono" :for="'env-' + l.id" x-text="l.key" :title="l.key"></label>
+                      <div class="env-val">
+                        <template x-if="envIsBool(l)">
+                          <label class="switch"><input type="checkbox" :id="'env-' + l.id" :checked="String(l.value).toLowerCase() === 'true'" @change="l.value = $event.target.checked ? 'true' : 'false'"><span></span></label>
+                        </template>
+                        <template x-if="!envIsBool(l)">
+                          <div class="row" style="gap:6px">
+                            <input class="grow mono" :id="'env-' + l.id" :type="envSecret(l) ? 'password' : 'text'" x-model="l.value" spellcheck="false" autocomplete="off">
+                            <button class="btn btn-ghost icon-btn sm" x-show="envIsSecret(l) && l.value" @click="env.reveal[l.id] = !env.reveal[l.id]" :aria-label="env.reveal[l.id] ? 'Hide value' : 'Show value'" :title="env.reveal[l.id] ? 'Hide' : 'Show'"><svg class="i"><use :href="env.reveal[l.id] ? '#i-eye-off' : '#i-eye'"/></svg></button>
+                          </div>
+                        </template>
+                      </div>
+                      <button class="btn btn-ghost icon-btn sm env-del" @click="removeEnvVar(l)" :aria-label="'Remove ' + l.key" title="Remove"><svg class="i"><use href="#i-trash"/></svg></button>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <div class="empty" x-show="!envGroups().length && !env.adding"><h3 x-text="env.q ? 'No variables match “' + env.q + '”' : 'This .env is empty'"></h3><button class="btn btn-ghost" @click="env.q ? env.q = '' : (env.adding = true)" x-text="env.q ? 'Clear search' : 'Add a variable'"></button></div>
+            </div>
+          </template>
+          <template x-if="env.view === 'raw'">
+            <div class="card-pad" style="padding-top:0"><textarea class="env-raw mono" x-model="env.raw" spellcheck="false" aria-label=".env file"></textarea></div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <div class="modal-foot" x-show="panel.tab === 'env' && env.file?.exists">
+      <span class="small" :class="envDirty() ? '' : 'muted'" x-text="envDirty() ? (env.view === 'raw' ? 'Unsaved changes' : envChangeCount() + ' unsaved change' + (envChangeCount() === 1 ? '' : 's')) : 'All changes saved · ' + (env.file?.path || '')"></span>
+      <div class="actions">
+        <button class="btn btn-ghost" x-show="envDirty()" @click="discardEnv()">Discard</button>
+        <button class="btn" :disabled="!envDirty() || env.saving" @click="saveEnv()" :title="(navigator.platform.includes('Mac') ? '⌘' : 'Ctrl') + '+S'"><svg class="i spin" x-show="env.saving"><use href="#i-loader"/></svg> Save .env</button>
+      </div>
+    </div>
+  </div>
+  </template>
+</div>
+
+<!-- ============ FIRST-RUN SETUP ============ -->
+<div class="onboard" x-show="onboard.open" x-cloak x-transition.opacity role="dialog" aria-modal="true" aria-labelledby="ob-title">
+  <div class="onboard-inner">
+    <div class="onboard-top">
+      <div class="brand onboard-brand"><img src="img/monster.png" alt=""><div class="wordmark"><span>Lara</span>Monster</div></div>
+      <button class="btn btn-link small" x-show="onboard.step < 4" @click="finishOnboard()">Skip setup</button>
+    </div>
+    <ol class="onboard-progress" aria-label="Setup steps">
+      <template x-for="(name, i) in onboardSteps" :key="name">
+        <li :class="{ on: i === onboard.step, done: i < onboard.step }" :aria-current="i === onboard.step ? 'step' : null"><span x-text="name"></span></li>
+      </template>
+    </ol>
+
+    <!-- 0: welcome -->
+    <section class="card onboard-card" x-show="onboard.step === 0">
+      <h1 id="ob-title" class="display">Welcome to LaraMonster</h1>
+      <p>Everything you need to build PHP and Laravel apps on this computer: PHP, a web server, databases, mail and HTTPS, ready in about a minute.</p>
+      <ul class="onboard-list">
+        <li><svg class="i"><use href="#i-folder"/></svg><div><b>Pick your projects folder</b><span>Every project inside it gets its own address.</span></div></li>
+        <li><svg class="i"><use href="#i-code"/></svg><div><b>Get PHP</b><span>One download, no compiling.</span></div></li>
+        <li><svg class="i"><use href="#i-shield"/></svg><div><b>Connect your system</b><span>Terminal commands, start at login and HTTPS.</span></div></li>
+      </ul>
+      <div class="onboard-foot"><span></span><button class="btn btn-orange" @click="onboard.step = 1">Get started</button></div>
+    </section>
+
+    <!-- 1: projects folder -->
+    <section class="card onboard-card" x-show="onboard.step === 1">
+      <h1 class="display">Where do your projects live?</h1>
+      <p>LaraMonster serves every folder inside it. A project in <span class="mono" x-text="(onboard.folder || '…') + '/blog'"></span> opens at <b x-text="s && sampleSiteURL()"></b>. The folder is created if it doesn't exist yet.</p>
+      <label class="field">Projects folder
+        <div class="row">
+          <input type="text" class="grow mono" x-model="onboard.folder" @keydown.enter="onboardFolder()" spellcheck="false" autocomplete="off">
+          <button class="btn btn-ghost" x-show="desktop" @click="onboardPick()"><svg class="i"><use href="#i-folder"/></svg> Browse…</button>
+        </div>
+      </label>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" @click="onboard.step = 0">Back</button>
+        <button class="btn" :disabled="!onboard.folder.trim() || !!onboard.busy" @click="onboardFolder()"><svg class="i spin" x-show="onboard.busy === 'folder'"><use href="#i-loader"/></svg> Continue</button>
+      </div>
+    </section>
+
+    <!-- 2: PHP -->
+    <section class="card onboard-card" x-show="onboard.step === 2">
+      <h1 class="display">PHP</h1>
+      <template x-if="s && s.php.length">
+        <div class="alert success"><svg class="i"><use href="#i-check"/></svg><div>PHP <b x-text="s.default_php"></b> is ready<span x-show="s.php.length > 1" x-text="' (' + s.php.length + ' versions found)'"></span>. You can add more versions later from the PHP page.</div></div>
+      </template>
+      <template x-if="s && !s.php.length">
+        <div class="stack">
+          <p>LaraMonster downloads a ready-made build of PHP with the extensions Laravel needs. Nothing is installed system-wide.</p>
+          <template x-if="phpJob()">
+            <div class="stack" style="gap:8px">
+              <div class="row small"><b class="grow" x-text="phpJob().title + '…'"></b><span class="muted" x-text="phpJob().progress >= 0 ? Math.round(phpJob().progress * 100) + '%' : ''"></span></div>
+              <div class="bar" :class="{ indet: phpJob().progress < 0 }"><i :style="'width:' + Math.max(4, phpJob().progress * 100) + '%'"></i></div>
+            </div>
+          </template>
+          <template x-if="!phpJob()">
+            <div>
+              <div class="small muted" x-show="availableLoading">Finding the latest version…</div>
+              <div class="alert error small" x-show="availableError"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><span x-text="availableError"></span> <button class="btn btn-link small" @click="loadAvailable(true)">Try again</button></div></div>
+              <button class="btn" x-show="recommendedPHP()" @click="installPHP(recommendedPHP().version)"><svg class="i"><use href="#i-download"/></svg> <span x-text="'Install PHP ' + recommendedPHP()?.full"></span></button>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" @click="onboard.step = 1">Back</button>
+        <button class="btn" :class="{ 'btn-ghost': s && !s.php.length && !phpJob() }" @click="onboard.step = 3" x-text="s && (s.php.length || phpJob()) ? 'Continue' : 'Skip for now'"></button>
+      </div>
+    </section>
+
+    <!-- 3: system -->
+    <section class="card onboard-card" x-show="onboard.step === 3">
+      <h1 class="display">Connect your system</h1>
+      <p>Each of these is optional and can be changed later.</p>
+      <div>
+        <div class="opt-row">
+          <div class="grow"><b style="color:var(--title)">Terminal commands</b>
+            <div class="small muted" x-show="onboard.setup?.cli">Use <code>php</code>, <code>composer</code> and <code>laramonster</code> in any terminal. <code>php</code> follows each project's PHP version.</div>
+            <div class="small muted" x-show="onboard.setup && !onboard.setup.cli">The command-line tool isn't included with this copy of LaraMonster.</div></div>
+          <span class="badge badge-green" x-show="onboard.setup?.terminal">Ready</span>
+          <button class="btn btn-sm" x-show="onboard.setup?.cli && !onboard.setup.terminal" :disabled="!!onboard.busy" @click="onboardTerminal()"><svg class="i spin" x-show="onboard.busy === 'terminal'"><use href="#i-loader"/></svg> Set up</button>
+        </div>
+        <div class="opt-row">
+          <div class="grow"><b style="color:var(--title)">Start at login</b><div class="small muted">Your sites and databases are up as soon as you log in.</div></div>
+          <label class="switch"><input type="checkbox" :checked="onboard.setup?.autostart" :disabled="!onboard.setup || !!onboard.busy" @change="onboardAutostart($event.target)" aria-label="Start at login"><span></span></label>
+        </div>
+        <div class="opt-row">
+          <div class="grow"><b style="color:var(--title)">Trust local HTTPS</b><div class="small muted">Secured sites get a valid padlock in your browser. Asks for your password once.</div></div>
+          <span class="badge badge-green" x-show="s && tlsOK()">Trusted</span>
+          <button class="btn btn-sm" x-show="s && !tlsOK()" :disabled="!!onboard.busy || !s?.tls.exists" @click="onboardTrust()"><svg class="i" :class="{ spin: onboard.busy === 'trust' }"><use :href="onboard.busy === 'trust' ? '#i-loader' : '#i-shield'"/></svg> Trust</button>
+        </div>
+      </div>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" @click="onboard.step = 2">Back</button>
+        <button class="btn" :disabled="!!onboard.busy" @click="onboard.step = 4">Continue</button>
+      </div>
+    </section>
+
+    <!-- 4: done -->
+    <section class="card onboard-card" x-show="onboard.step === 4">
+      <div class="onboard-done"><svg class="i"><use href="#i-check"/></svg></div>
+      <h1 class="display">You're all set</h1>
+      <p>Drop a project into <span class="mono" x-text="onboard.setup?.folder || onboard.folder"></span> and it's live right away, or let LaraMonster create a new Laravel app for you.</p>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" @click="finishOnboard()">Go to dashboard</button>
+        <button class="btn btn-orange" @click="finishOnboard('project')"><svg class="i"><use href="#i-plus"/></svg> Create a project</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ NEW PROJECT WIZARD ============ -->
+<div class="modal-back" x-show="wizard.open" x-cloak @click.self="closeWizard()" x-transition.opacity>
+  <div class="card modal wide" role="dialog" aria-modal="true" aria-labelledby="wiz-title">
+    <div class="card-head">
+      <h2 id="wiz-title" x-text="wizard.job ? 'Creating ' + slug(wizard.f.name) : 'New project'"></h2>
+      <button class="btn btn-ghost icon-btn" @click="closeWizard()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+
+    <template x-if="!wizard.job">
+      <nav class="steps" aria-label="Steps">
+        <template x-for="(st, i) in wizardSteps" :key="st">
+          <button class="step" :class="{ on: wizard.step === i, done: wizard.step > i }" :disabled="i > wizard.maxStep" @click="wizard.step = i">
+            <i x-text="wizard.step > i ? '✓' : i + 1"></i><span x-text="st"></span>
+          </button>
+        </template>
+      </nav>
+    </template>
+
+    <div class="modal-body">
+      <!-- gate: no PHP -->
+      <div class="card-pad" x-show="!wizard.job && s && !s.php.length">
+        <div class="alert"><svg class="i"><use href="#i-alert"/></svg><div>A project needs PHP. <a href="#php" @click="closeWizard()">Install a PHP version</a> (one click), then come back.</div></div>
+      </div>
+
+      <!-- step 1: basics -->
+      <div class="card-pad" x-show="!wizard.job && wizard.step === 0">
+        <label class="field">Project name
+          <input type="text" x-model="wizard.f.name" placeholder="my-shop" @input="syncDomain()" :class="{ invalid: wizard.touched && nameError() }" x-ref="wizName">
+          <small>Used as the folder name.</small>
+          <span class="err-text" x-show="wizard.touched && nameError()" x-text="nameError()"></span>
+        </label>
+        <label class="field">Domain
+          <div class="input-addon"><input type="text" x-model="wizard.f.domain" @input="wizard.domainEdited = true" placeholder="my-shop" :class="{ invalid: wizard.touched && domainError() }"><span x-text="'.' + s?.config.tld"></span></div>
+          <small>Your site will be at <b style="color:var(--accent-text)" x-text="previewURL()"></b></small>
+          <span class="err-text" x-show="wizard.touched && domainError()" x-text="domainError()"></span>
+        </label>
+        <label class="field">Location
+          <div class="row">
+            <select class="grow" x-model="wizard.f.dirChoice">
+              <template x-for="p in s?.config.paths || []" :key="p"><option :value="p" x-text="p"></option></template>
+              <option value="__custom">Another folder…</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" x-show="desktop" @click="pickInto('dir')">Browse</button>
+          </div>
+          <input type="text" x-show="wizard.f.dirChoice === '__custom'" x-model="wizard.f.dir" placeholder="/home/you/Code" style="margin-top:6px">
+          <small x-show="!s?.config.paths?.length">You haven't parked a folder yet: choose where the project should live.</small>
+        </label>
+        <label class="field">PHP version
+          <select x-model="wizard.f.php">
+            <option value="" x-text="'Default (PHP ' + (s?.default_php || '—') + ')'"></option>
+            <template x-for="p in s?.php || []" :key="p.version"><option :value="p.version" :selected="wizard.f.php === p.version" x-text="'PHP ' + p.full + (p.managed ? ' (LaraMonster)' : ' (system)')"></option></template>
+          </select>
+          <small x-show="wizardPHP() && !(wizardPHP().pdo || []).includes('sqlite')">This PHP can't use SQLite (pdo_sqlite is missing). PHP versions installed by LaraMonster include every database driver.</small>
+        </label>
+      </div>
+
+      <!-- step 2: stack -->
+      <div class="card-pad" x-show="!wizard.job && wizard.step === 1">
+        <div>
+          <div class="section-title" style="margin-top:0">Starter kit</div>
+          <div class="choice-grid">
+            <template x-for="k in catalog.kits" :key="k.id">
+              <button type="button" class="choice" :class="{ on: wizard.f.kit === k.id }" @click="wizard.f.kit = k.id"><b x-text="k.title"></b><small x-text="k.description"></small></button>
+            </template>
+          </div>
+        </div>
+        <div x-show="wizard.f.kit !== 'blank'">
+          <div class="section-title">Database</div>
+          <div class="choice-grid">
+            <button type="button" class="choice" :class="{ on: wizard.f.database === 'sqlite' }" @click="wizard.f.database = 'sqlite'"><b>SQLite</b><small>A single file, zero setup. Great to start.</small></button>
+            <button type="button" class="choice" :class="{ on: wizard.f.database === 'mysql' }" @click="wizard.f.database = 'mysql'" :disabled="!serviceInstalled('mysql')"><b>MySQL / MariaDB</b><small x-text="serviceInstalled('mysql') ? 'Creates a database and starts the server.' : 'Not installed: add it from Tools.'"></small></button>
+            <button type="button" class="choice" :class="{ on: wizard.f.database === 'pgsql' }" @click="wizard.f.database = 'pgsql'" :disabled="!serviceInstalled('postgres')"><b>PostgreSQL</b><small x-text="serviceInstalled('postgres') ? 'Creates a database and starts the server.' : 'Not installed: add it from Tools.'"></small></button>
+          </div>
+          <div class="alert error small" style="margin-top:10px" x-show="!!dbBlocker(wizard.f.database)"><svg class="i"><use href="#i-alert"/></svg><div x-text="dbBlocker(wizard.f.database)"></div></div>
+          <div class="hint" style="margin-top:8px" x-show="!serviceInstalled('mysql') || !serviceInstalled('postgres')"><a href="#tools" @click="closeWizard()">Install databases in Tools</a></div>
+          <div class="section-title">Wiring</div>
+          <div>
+            <div class="opt-row"><div class="grow"><b style="color:var(--title)">Catch emails in the Mail inbox</b><div class="small muted">Sets MAIL_* to LaraMonster's inbox<span x-show="!s?.mail.installed"> (installs on first use from the Mail page)</span>.</div></div><label class="switch"><input type="checkbox" x-model="wizard.f.mail" aria-label="Mail inbox"><span></span></label></div>
+            <div class="opt-row"><div class="grow"><b style="color:var(--title)">Redis for cache, queues and sessions</b><div class="small muted" x-text="serviceInstalled('redis') ? 'Starts Redis and sets CACHE_STORE, QUEUE_CONNECTION, SESSION_DRIVER.' : 'Redis isn’t installed: add it from Tools.'"></div></div><label class="switch"><input type="checkbox" x-model="wizard.f.redis" :disabled="!serviceInstalled('redis')" aria-label="Redis"><span></span></label></div>
+            <div class="opt-row"><div class="grow"><b style="color:var(--title)">Serve over HTTPS</b><div class="small muted">Local certificate, trusted once from Settings.</div></div><label class="switch"><input type="checkbox" x-model="wizard.f.secure" aria-label="HTTPS"><span></span></label></div>
+            <div class="opt-row"><div class="grow"><b style="color:var(--title)">Build frontend assets</b><div class="small muted" x-text="nodeInstalled() ? 'Runs npm install and npm run build.' : 'Needs Node.js: install it from Tools (or skip and build later).'"></div></div><label class="switch"><input type="checkbox" x-model="wizard.f.npm" aria-label="Build frontend"><span></span></label></div>
+            <div class="opt-row"><div class="grow"><b style="color:var(--title)">Initialise Git</b><div class="small muted">First commit on a <code>main</code> branch.</div></div><label class="switch"><input type="checkbox" x-model="wizard.f.git" aria-label="Git"><span></span></label></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- step 3: packages -->
+      <div class="card-pad" x-show="!wizard.job && wizard.step === 2">
+        <template x-if="wizard.f.kit === 'blank'"><div class="alert info"><svg class="i"><use href="#i-info"/></svg><div>Blank projects don't use Composer packages. Pick a Laravel starter kit in the previous step to add packages.</div></div></template>
+        <div x-show="wizard.f.kit !== 'blank'" class="stack">
+          <div class="alert info" style="align-items:center">
+            <svg class="i"><use href="#i-sparkles"/></svg>
+            <div class="grow"><b>AI-ready</b> — add Laravel Boost so coding agents (Claude Code, Cursor, Copilot) get Laravel guidelines and an MCP server for this app.</div>
+            <label class="switch"><input type="checkbox" :checked="wizard.f.packages.includes('laravel/boost')" @change="togglePkg('laravel/boost')" aria-label="AI-ready with Laravel Boost"><span></span></label>
+          </div>
+          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search all Packagist packages…" x-model="pk.q" @input.debounce.400ms="searchPackages()" aria-label="Search packages"></div>
+          <div class="chips" x-show="wizard.f.packages.length">
+            <template x-for="p in wizard.f.packages" :key="p"><span class="chip"><span x-text="p"></span><button @click="togglePkg(p)" :aria-label="'Remove ' + p"><svg class="i" style="width:12px;height:12px"><use href="#i-x"/></svg></button></span></template>
+          </div>
+          <div class="pkg-layout">
+            <div class="pkg-cats" x-show="!pk.q">
+              <template x-for="c in ['Recommended', ...catalog.categories, 'Top on Packagist']" :key="c">
+                <button :class="{ on: pk.cat === c }" @click="pk.cat = c; if (c === 'Top on Packagist') searchPackages()"><span x-text="c"></span><span class="muted" x-text="catCount(c)"></span></button>
+              </template>
+            </div>
+            <div class="pkg-list" :style="pk.q ? 'grid-column:1 / -1' : ''">
+              <template x-if="pk.loading"><div class="stack"><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div></div></template>
+              <div class="alert error" x-show="pk.error && !pk.loading"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="pk.error"></div><button class="btn btn-link small" @click="searchPackages()">Try again</button></div></div>
+              <template x-for="p in visiblePackages()" :key="p.name">
+                <button type="button" class="pkg" :class="{ on: wizard.f.packages.includes(p.name) }" @click="togglePkg(p.name)" :aria-pressed="wizard.f.packages.includes(p.name)">
+                  <span class="box" x-text="wizard.f.packages.includes(p.name) ? '✓' : ''"></span>
+                  <span class="grow">
+                    <span class="pkg-name"><span x-text="p.title || p.name"></span>
+                      <span class="badge badge-blue" x-show="p.recommended">Recommended</span>
+                      <span class="badge" x-show="p.dev">dev</span>
+                      <span class="badge badge-orange" x-show="p.needs" x-text="'uses ' + p.needs"></span>
+                      <span class="badge" x-show="p.downloads" x-text="fmtNum(p.downloads) + ' installs'"></span></span>
+                    <span class="pkg-desc mono" x-show="p.title" x-text="p.name"></span>
+                    <span class="pkg-desc" style="display:block" x-text="p.description"></span>
+                  </span>
+                </button>
+              </template>
+              <div class="empty" x-show="!pk.loading && !pk.error && !visiblePackages().length" style="padding:24px"><h3 x-text="pk.q ? 'No packages found' : 'Nothing here'"></h3><p x-show="pk.q">Try a different word, or the vendor name (e.g. “spatie”).</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- step 4: review -->
+      <div class="card-pad" x-show="!wizard.job && wizard.step === 3">
+        <dl class="review">
+          <dt>Project</dt><dd x-text="slug(wizard.f.name)"></dd>
+          <dt>URL</dt><dd x-text="previewURL()"></dd>
+          <dt>Folder</dt><dd class="mono" x-text="targetDir() + '/' + slug(wizard.f.name)"></dd>
+          <dt>Starter kit</dt><dd x-text="catalog.kits.find(k => k.id === wizard.f.kit)?.title"></dd>
+          <dt>PHP</dt><dd x-text="wizard.f.php || 'Default (' + s?.default_php + ')'"></dd>
+          <template x-if="wizard.f.kit !== 'blank'"><dt>Database</dt></template><template x-if="wizard.f.kit !== 'blank'"><dd x-text="{ sqlite: 'SQLite', mysql: 'MySQL / MariaDB', pgsql: 'PostgreSQL' }[wizard.f.database]"></dd></template>
+          <template x-if="wizard.f.kit !== 'blank'"><dt>Wiring</dt></template><template x-if="wizard.f.kit !== 'blank'"><dd x-text="wiringText()"></dd></template>
+          <template x-if="wizard.f.kit !== 'blank'"><dt>Packages</dt></template><template x-if="wizard.f.kit !== 'blank'"><dd x-text="wizard.f.packages.join(', ') || 'None'"></dd></template>
+        </dl>
+      </div>
+
+      <!-- progress -->
+      <div class="card-pad" x-show="wizard.job">
+        <template x-if="currentJob()">
+          <div class="stack">
+            <div class="bar" :class="{ indet: !currentJob().done && currentJob().progress < 0 }"><i :style="'width:' + Math.max(4, (currentJob().done ? 1 : currentJob().progress) * 100) + '%'"></i></div>
+            <div class="progress-steps">
+              <template x-for="(p, i) in progressStages" :key="p">
+                <div class="pstep" :class="stageState(i)"><svg class="i" :class="{ spin: stageState(i) === 'now' }"><use :href="stageState(i) === 'done' ? '#i-check' : (stageState(i) === 'now' ? '#i-loader' : '#i-box')"/></svg><span x-text="p"></span></div>
+              </template>
+            </div>
+            <div class="alert error" x-show="currentJob().error"><svg class="i"><use href="#i-alert"/></svg><div x-text="currentJob().error"></div></div>
+            <template x-if="currentJob().done && !currentJob().error">
+              <div class="stack">
+                <div class="alert info" style="align-items:center"><svg class="i"><use href="#i-check"/></svg><div class="grow"><b x-text="slug(wizard.f.name) + ' is ready'"></b> at <a :href="previewURL()" target="_blank" rel="noopener" x-text="previewURL()"></a></div></div>
+                <template x-for="w in currentJob().result?.warnings || []" :key="w"><div class="alert small"><svg class="i"><use href="#i-alert"/></svg><div x-text="w"></div></div></template>
+              </div>
+            </template>
+            <details :open="!!currentJob().error"><summary class="small muted" style="cursor:pointer">Details</summary><pre class="joblog" x-ref="joblog" x-text="(currentJob().log || []).join('\n')"></pre></details>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <template x-if="!wizard.job">
+        <div class="row" style="width:100%;justify-content:space-between">
+          <button class="btn btn-ghost" @click="wizard.step ? wizard.step-- : closeWizard()" x-text="wizard.step ? 'Back' : 'Cancel'"></button>
+          <button class="btn" x-show="wizard.step < 3" @click="nextStep()" :disabled="!s?.php.length">Continue</button>
+          <button class="btn btn-orange" x-show="wizard.step === 3" @click="createProject()" :disabled="wizard.submitting"><svg class="i"><use href="#i-zap"/></svg> Create project</button>
+        </div>
+      </template>
+      <template x-if="wizard.job">
+        <div class="row" style="width:100%;justify-content:flex-end;flex-wrap:wrap">
+          <span class="small muted grow" x-show="!currentJob()?.done">You can close this; it keeps going in the background.</span>
+          <button class="btn btn-ghost" x-show="currentJob()?.done && !currentJob()?.error" @click="openCreated('editor')"><svg class="i"><use href="#i-code"/></svg> Open in editor</button>
+          <a class="btn" x-show="currentJob()?.done && !currentJob()?.error" :href="previewURL()" target="_blank" rel="noopener"><svg class="i"><use href="#i-external"/></svg> Open site</a>
+          <button class="btn btn-ghost" x-show="currentJob()?.done && currentJob()?.error" @click="wizard.job = null; wizard.step = 3">Back to review</button>
+          <button class="btn btn-ghost" @click="closeWizard()" x-text="currentJob()?.done ? 'Close' : 'Hide'"></button>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADD FOLDER ============ -->
+<div class="modal-back" x-show="modal === 'add'" x-cloak @click.self="modal = null" x-transition.opacity>
+  <div class="card modal" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <div class="card-head"><h2 id="add-title">Add folder</h2><button class="btn btn-ghost icon-btn" @click="modal = null" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body card-pad">
+      <div class="tabs">
+        <button :class="{ on: addTab === 'park' }" @click="addTab = 'park'">Park a directory</button>
+        <button :class="{ on: addTab === 'link' }" @click="addTab = 'link'">Link one project</button>
+      </div>
+      <div class="small muted" x-text="addTab === 'park' ? 'Every subfolder becomes a site: ~/Code/blog → blog.' + s?.config.tld : 'Serve one folder under a name you choose.'"></div>
+      <label class="field">Folder path
+        <div class="row">
+          <input class="grow" type="text" x-model="addForm.path" placeholder="/home/you/Code">
+          <button class="btn btn-ghost btn-sm" x-show="desktop" @click="pick('addForm', 'path')">Browse</button>
+        </div>
+      </label>
+      <label class="field" x-show="addTab === 'link'">Domain
+        <div class="input-addon"><input type="text" x-model="addForm.name" placeholder="defaults to the folder name"><span x-text="'.' + s?.config.tld"></span></div>
+      </label>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" @click="modal = null">Cancel</button><button class="btn" @click="addFolder()" x-text="addTab === 'park' ? 'Park directory' : 'Link project'"></button></div>
+  </div>
+</div>
+
+<!-- ============ jobs & toasts ============ -->
+<div class="dock" aria-live="polite">
+  <template x-for="j in visibleJobs()" :key="j.id">
+    <div class="job">
+      <div class="row"><b class="grow ellipsis" x-text="j.title"></b>
+        <span class="badge badge-green" x-show="j.done && !j.error">Done</span>
+        <span class="badge badge-red" x-show="j.error">Failed</span></div>
+      <div class="detail ellipsis" x-text="j.error || j.detail"></div>
+      <div class="bar" :class="{ indet: !j.done && j.progress < 0 }" x-show="!j.done"><i :style="'width:' + Math.max(4, j.progress * 100) + '%'"></i></div>
+    </div>
+  </template>
+  <template x-for="t in toasts" :key="t.id">
+    <div class="toast" :class="t.kind" role="status">
+      <div class="grow" x-text="t.text"></div>
+      <button class="btn btn-ghost icon-btn" style="width:26px;height:26px;min-height:26px;border:0" @click="toasts = toasts.filter(x => x !== t)" aria-label="Dismiss"><svg class="i" style="width:14px;height:14px"><use href="#i-x"/></svg></button>
+    </div>
+  </template>
+</div>
+</body>
+</html>

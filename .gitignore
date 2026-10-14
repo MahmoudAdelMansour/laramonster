@@ -1,0 +1,7 @@
+bin/
+dist/
+/laramonster
+/laramonster-app
+*.exe
+*.test
+.DS_Store

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=LaraMonster
+GenericName=PHP Development Environment
+Comment=Local PHP & Laravel development environment
+Exec=laramonster-app %u
+Icon=laramonster
+Terminal=false
+Categories=Development;WebDevelopment;
+Keywords=php;laravel;nginx;caddy;mysql;herd;valet;
+StartupWMClass=laramonster
+StartupNotify=true
+MimeType=x-scheme-handler/laramonster;

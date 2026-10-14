@@ -1,0 +1,79 @@
+# Tag a version (git tag v0.2.0 && git push --tags) and this builds every
+# installer and publishes them on the public downloads repository,
+# MahmoudAdelMansour/laramonster-releases. The source stays in this private repo.
+#
+# Needs one secret here (Settings → Secrets → Actions): RELEASES_TOKEN, a
+# fine-grained token with "Contents: Read and write" on laramonster-releases only.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - name: Desktop app libraries (GTK3 + WebKitGTK 4.1)
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+      - run: make test
+      - name: Linux app + CLI
+        run: make cli app VERSION=${{ github.ref_name }}
+      - run: ./scripts/package-linux.sh amd64
+      - name: CLI for every platform + Windows app (cross-compiled)
+        run: |
+          mv dist/LaraMonster-linux-amd64.tar.gz /tmp/
+          make release VERSION=${{ github.ref_name }}
+          mv /tmp/LaraMonster-linux-amd64.tar.gz dist/
+          rm -f dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-and-windows, path: dist/ }
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: VERSION=${{ github.ref_name }} ./scripts/package-macos.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: dist/ }
+
+  publish:
+    needs: [linux, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - name: Publish on laramonster-releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: MahmoudAdelMansour/laramonster-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: LaraMonster ${{ github.ref_name }}
+          # A tag with "-" (v0.3.0-beta.1) is a pre-release: the update check skips it.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## Download
+
+            | System | File |
+            |---|---|
+            | Windows 10/11 | `LaraMonster-windows-amd64.exe` |
+            | macOS 11+ (Apple Silicon and Intel) | `LaraMonster-macos-universal.zip` |
+            | Linux (x86-64) | `LaraMonster-linux-amd64.tar.gz`, unpack and run `./install.sh` |
+
+            Command-line only: `laramonster-<os>-<arch>`. Verify with `SHA256SUMS`.
+
+            LaraMonster is free. Pro (Event Tracker, Jobs & Queues): https://monstersgate.com/laramonster
+          files: dist/*
