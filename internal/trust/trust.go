@@ -75,11 +75,37 @@ var linuxBundles = []string{
 	"/etc/ssl/cert.pem",
 }
 
+// firefoxProfiles lists the Firefox profiles that have their own NSS store.
+func firefoxProfiles() []string {
+	home, _ := os.UserHomeDir()
+	if runtime.GOOS == "darwin" {
+		p, _ := filepath.Glob(filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles", "*"))
+		return p
+	}
+	p, _ := filepath.Glob(filepath.Join(home, ".mozilla", "firefox", "*.default*"))
+	return p
+}
+
+// NeedsBrowserStores reports whether browsers keep their own certificate
+// stores here: always on Linux (Chrome and Firefox), on macOS only when
+// Firefox is installed (Safari and Chrome use the system keychain), never on
+// Windows.
+func NeedsBrowserStores() bool {
+	switch runtime.GOOS {
+	case "linux":
+		return true
+	case "darwin":
+		return len(firefoxProfiles()) > 0
+	}
+	return false
+}
+
 // BrowserStatus reports trust in the NSS stores Firefox and (on Linux)
-// Chrome use. "missing-certutil" means they can't be checked or updated.
+// Chrome use. "system" means the browsers here use the OS store;
+// "missing-certutil" means they can't be checked or updated.
 func BrowserStatus() string {
-	if runtime.GOOS == "windows" {
-		return "system" // Chrome, Edge and Firefox (by default) use the OS store
+	if !NeedsBrowserStores() {
+		return "system"
 	}
 	cert, err := load()
 	if err != nil {
@@ -94,11 +120,7 @@ func BrowserStatus() string {
 	if runtime.GOOS == "linux" {
 		dbs = append(dbs, filepath.Join(home, ".pki", "nssdb"))
 	}
-	profiles, _ := filepath.Glob(filepath.Join(home, ".mozilla", "firefox", "*.default*"))
-	if runtime.GOOS == "darwin" {
-		profiles, _ = filepath.Glob(filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles", "*"))
-	}
-	dbs = append(dbs, profiles...)
+	dbs = append(dbs, firefoxProfiles()...)
 	fp := fmt.Sprintf("%X", sha256.Sum256(cert.Raw))
 	found := 0
 	for _, db := range dbs {

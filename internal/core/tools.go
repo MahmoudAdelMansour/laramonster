@@ -186,7 +186,7 @@ func PathConfigured() bool {
 		return err == nil && slices.Contains(filepath.SplitList(strings.TrimSpace(string(out))), paths.Bin())
 	}
 	home, _ := os.UserHomeDir()
-	for _, rc := range []string{".bashrc", ".zshrc", ".profile", filepath.Join(".config", "fish", "conf.d", "laramonster.fish")} {
+	for _, rc := range []string{".bashrc", ".bash_profile", ".zshrc", ".profile", filepath.Join(".config", "fish", "conf.d", "laramonster.fish")} {
 		if b, err := os.ReadFile(filepath.Join(home, rc)); err == nil && strings.Contains(string(b), paths.Bin()) {
 			return true
 		}
@@ -216,22 +216,16 @@ func AddToPath() ([]string, error) {
 	}
 	line := fmt.Sprintf("export PATH=\"%s:$PATH\" # LaraMonster", paths.Bin())
 	var changed []string
-	for _, rc := range []string{".bashrc", ".zshrc", ".profile"} {
+	// The profiles that exist, plus the user's own shell's, created when
+	// missing (a new Mac has no ~/.zshrc).
+	own := shellProfile()
+	for _, rc := range []string{".bashrc", ".bash_profile", ".zshrc", ".profile"} {
 		p := filepath.Join(home, rc)
 		b, err := os.ReadFile(p)
-		if err != nil {
+		if (err != nil && rc != own) || strings.Contains(string(b), "# LaraMonster") {
 			continue
 		}
-		if strings.Contains(string(b), "# LaraMonster") {
-			continue
-		}
-		f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0)
-		if err != nil {
-			return changed, err
-		}
-		_, err = fmt.Fprintf(f, "\n%s\n", line)
-		f.Close()
-		if err != nil {
+		if err := appendLine(p, line); err != nil {
 			return changed, err
 		}
 		changed = append(changed, p)
@@ -243,6 +237,37 @@ func AddToPath() ([]string, error) {
 		}
 	}
 	return changed, nil
+}
+
+// shellProfile is the startup file of the user's shell, relative to home.
+func shellProfile() string {
+	switch filepath.Base(os.Getenv("SHELL")) {
+	case "zsh":
+		return ".zshrc"
+	case "bash":
+		if runtime.GOOS == "darwin" {
+			return ".bash_profile" // Terminal opens login shells
+		}
+		return ".bashrc"
+	case "", "sh":
+		if runtime.GOOS == "darwin" {
+			return ".zshrc" // the default shell since macOS 10.15
+		}
+	}
+	return ".profile"
+}
+
+// appendLine adds a line to a file, creating it when missing.
+func appendLine(p, line string) error {
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(f, "\n%s\n", line)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
 func isFile(p string) bool {

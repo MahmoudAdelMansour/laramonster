@@ -65,4 +65,3 @@ func TestCaddyfileProxyHeaders(t *testing.T) {
 		t.Errorf("token header missing from the dashboard proxy:\n%s", cf)
 	}
 }
-

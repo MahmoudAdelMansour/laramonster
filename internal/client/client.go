@@ -14,7 +14,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 )
 
 var httpClient = &http.Client{

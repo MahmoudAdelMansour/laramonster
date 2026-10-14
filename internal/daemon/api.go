@@ -279,6 +279,9 @@ func TrustCA() error {
 		}
 	}
 	// Browser stores (Firefox, and Chrome on Linux) need certutil.
+	if !trust.NeedsBrowserStores() {
+		return nil
+	}
 	if err := trust.InstallBrowsers(); err != nil {
 		if trust.BrowserStatus() == "missing-certutil" {
 			return errors.New("the system trusts LaraMonster now, but browsers need certutil: install “Browser certificate tools” from Tools, then trust again")
