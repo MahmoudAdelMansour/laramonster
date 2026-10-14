@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Store package. Identity values come from Partner Center →
+     LaraMonster → Product identity; the Store signs the package. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity Name="Laramonster.LaraMonster"
+            Publisher="CN=678879E9-F2C0-4AEF-AFDD-29D566C9F533"
+            Version="__VERSION__"
+            ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>LaraMonster</DisplayName>
+    <PublisherDisplayName>Laramonster</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <!-- The desktop app. laramonster:// links ("Open in LaraMonster" in
+         license emails) start it with the link as its argument. -->
+    <Application Id="LaraMonster" Executable="LaraMonsterApp.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="LaraMonster"
+                          Description="Local PHP and Laravel development environment"
+                          BackgroundColor="transparent"
+                          Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="laramonster">
+            <uap:DisplayName>LaraMonster</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+
+    <!-- The command line: `laramonster` works in any terminal (an app
+         execution alias), no PATH editing needed. Not shown in Start. -->
+    <Application Id="LaraMonsterCLI" Executable="laramonster.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="LaraMonster command line"
+                          Description="LaraMonster command line"
+                          BackgroundColor="transparent"
+                          Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png"
+                          AppListEntry="none" />
+      <Extensions>
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="laramonster.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="laramonster.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Runs PHP, a local web server and databases as normal desktop processes. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

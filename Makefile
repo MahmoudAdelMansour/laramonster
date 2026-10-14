@@ -35,7 +35,7 @@ release:
 	rm -rf $(DIST) && mkdir -p $(DIST)
 	for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do \
 		os=$${t%/*}; arch=$${t#*/}; ext=; [ $$os = windows ] && ext=.exe; \
-		GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $(DIST)/laramonster-$$os-$$arch$$ext ./cmd/laramonster || exit 1; \
+		GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $(DIST)/laramonster-cli-$$os-$$arch$$ext ./cmd/laramonster || exit 1; \
 	done
 	GOOS=windows GOARCH=amd64 go build -tags production -ldflags "$(LDFLAGS) -H windowsgui" -o $(DIST)/LaraMonster-windows-amd64.exe ./cmd/laramonster-app
 	cd $(DIST) && sha256sum * > SHA256SUMS
