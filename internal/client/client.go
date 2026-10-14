@@ -2,6 +2,7 @@
 package client
 
 import (
+	"os"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -65,6 +66,9 @@ func Call(method, path string, body any) ([]byte, error) {
 func Running() bool {
 	conn, err := net.DialTimeout("unix", paths.Socket(), time.Second)
 	if err != nil {
+		if os.Getenv("LARAMONSTER_DEBUG") != "" {
+			fmt.Fprintf(os.Stderr, "debug: dial %s: %v\n", paths.Socket(), err)
+		}
 		return false
 	}
 	conn.Close()

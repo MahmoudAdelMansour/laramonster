@@ -15,7 +15,7 @@ step() { printf '\n== %s\n' "$*"; }
 fail() {
 	echo "SMOKE FAILED: $*"
 	echo; echo "--- run dir"; ls -la "$LARAMONSTER_HOME/run" 2>&1 || true
-	echo; echo "--- laramonster status"; "$LM" status 2>&1 | head -20 || true
+	echo; echo "--- laramonster status"; LARAMONSTER_DEBUG=1 "$LM" status 2>&1 | head -20 || true
 	for f in "$LARAMONSTER_HOME"/logs/*; do
 		[ -f "$f" ] || continue
 		echo; echo "--- $(basename "$f") (last 40 lines)"; tail -40 "$f"
