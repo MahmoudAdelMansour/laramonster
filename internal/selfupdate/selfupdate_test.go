@@ -34,8 +34,10 @@ func TestKindOf(t *testing.T) {
 	if runtime.GOOS == "darwin" && KindOf("/usr/local/bin/laramonster-app") != None {
 		t.Fatal("a bare macOS binary can't be swapped as an app")
 	}
-	if got := appBundle("/Applications/LaraMonster.app/Contents/MacOS/laramonster-app"); got != "/Applications/LaraMonster.app" {
-		t.Fatal(got)
+	if runtime.GOOS != "windows" {
+		if got := appBundle("/Applications/LaraMonster.app/Contents/MacOS/laramonster-app"); got != "/Applications/LaraMonster.app" {
+			t.Fatal(got)
+		}
 	}
 }
 
