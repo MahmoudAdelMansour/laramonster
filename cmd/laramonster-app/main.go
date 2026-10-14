@@ -248,6 +248,9 @@ func assetHandler(app **application.App, ready, restart func()) http.Handler {
 			// The release comes from monstersgate.com here, never from the page.
 			info := update.Check()
 			if !info.Available {
+				info = update.Refresh() // the engine may have found it moments ago
+			}
+			if !info.Available {
 				writeError(w, "LaraMonster is up to date")
 				return
 			}

@@ -33,7 +33,13 @@ func (rt *Runtime) registerPro(handle func(string, apiFunc), mux *http.ServeMux)
 	// ── account (always available) ──
 	handle("GET /api/account", func(*http.Request) (any, error) { return rt.acct.Status(), nil })
 	// Newest release vs this build (cached 6h): the sidebar's "Update available".
-	handle("GET /api/update", func(*http.Request) (any, error) { return update.Check(), nil })
+	// ?refresh=1: "Check for updates" in Settings asks again now.
+	handle("GET /api/update", func(r *http.Request) (any, error) {
+		if r.URL.Query().Get("refresh") == "1" {
+			return update.Refresh(), nil
+		}
+		return update.Check(), nil
+	})
 	handle("POST /api/account/sign-in", func(r *http.Request) (any, error) {
 		b, err := readBody(r)
 		if err != nil {

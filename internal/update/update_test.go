@@ -56,7 +56,12 @@ func TestFetch(t *testing.T) {
 	if i := fetch(srv.URL, "v0.3.0", "linux"); i.Available {
 		t.Errorf("same version is not an update: %+v", i)
 	}
-	if i := fetch("http://127.0.0.1:1/none", "v0.1.0", "linux"); i.Available {
-		t.Errorf("offline: no update, no error: %+v", i)
+	if i := fetch("http://127.0.0.1:1/none", "v0.1.0", "linux"); i.Available || i.Error == "" {
+		t.Errorf("offline: no update, and Settings says why: %+v", i)
+	}
+	none := httptest.NewServer(http.NotFoundHandler())
+	defer none.Close()
+	if i := fetch(none.URL, "v0.1.0", "linux"); i.Available || i.Error != "" {
+		t.Errorf("no release yet is simply up to date: %+v", i)
 	}
 }

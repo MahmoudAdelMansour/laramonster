@@ -155,6 +155,7 @@ document.addEventListener('alpine:init', () => {
     upd: null, // desktop app only: { kind: self|store|none, phase, version, progress, error } from /app/update
     updDialog: false,
     updRestarting: false,
+    updChecking: false,
     updShown: false, // the "update available" dialog opens once per launch
     updTimer: null,
     proSites: null,
@@ -228,6 +229,7 @@ document.addEventListener('alpine:init', () => {
         if (this.page === 'tools' || this.page === 'services') this.loadTools();
         if (this.page === 'mail') this.loadMail();
         if (this.page === 'monitor') this.loadMonitor();
+        if (this.page === 'settings' && this.desktop) this.loadUpd();
         if (this.page === 'account') this.loadAccount();
         if (this.page === 'events') this.openPro('events');
         if (this.page === 'jobs') this.openPro('jobs');
@@ -686,6 +688,35 @@ document.addEventListener('alpine:init', () => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || 'Could not restart');
       } catch (e) { this.updRestarting = false; this.toast(e.message, 'err'); }
+    },
+    // Settings → Updates: one word for the badge, one sentence for the detail.
+    updStatus() {
+      const v = 'v' + (this.update?.latest || '');
+      if (this.updChecking) return { word: 'Checking', badge: 'badge-blue', detail: '' };
+      switch (this.upd?.phase) {
+        case 'downloading': return { word: 'Downloading', badge: 'badge-blue', detail: 'Downloading ' + v + '… ' + (this.upd.progress || 0) + '%' };
+        case 'installing': return { word: 'Installing', badge: 'badge-blue', detail: 'Installing ' + v + '…' };
+        case 'ready': return { word: 'Restart needed', badge: 'badge-orange', detail: 'v' + this.upd.version + ' is installed. Restart LaraMonster to start using it; your sites pause for a few seconds.', alert: 'info' };
+        case 'error': return { word: 'Update failed', badge: 'badge-red', detail: this.upd.error, alert: 'error' };
+      }
+      if (this.update?.error) return { word: 'Couldn’t check', badge: 'badge-red', detail: 'Couldn’t check for updates: ' + this.update.error + '.', alert: 'error' };
+      if (this.update?.available) return { word: 'Update available', badge: 'badge-orange', detail: v + ' is available.' };
+      if (!this.update) return { word: 'Not checked', badge: '', detail: '' };
+      if (/dev|-\d+-g[0-9a-f]+$|-dirty$/.test(this.update.current || '')) return { word: 'Development build', badge: '', detail: 'This is a development build, so it doesn’t update itself.' };
+      return { word: 'Up to date', badge: 'badge-green', detail: '' };
+    },
+    async checkForUpdates() {
+      this.updChecking = true;
+      try {
+        this.update = await api('GET', '/update?refresh=1');
+        if (this.desktop) await this.loadUpd();
+        if (this.update.available) this.updateFound();
+        else if (!this.update.error) this.toast('LaraMonster is up to date', 'ok');
+      } catch (e) {
+        this.toast(e.message, 'err');
+      } finally {
+        this.updChecking = false;
+      }
     },
     updChipText() {
       const v = 'v' + (this.upd?.version || this.update?.latest || '');

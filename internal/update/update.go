@@ -25,6 +25,7 @@ type Info struct {
 	DownloadURL string `json:"download_url,omitempty"`
 	NotesURL    string `json:"notes_url,omitempty"`
 	CheckedAt   string `json:"checked_at,omitempty"`
+	Error       string `json:"error,omitempty"` // the check itself failed (offline…)
 }
 
 var (
@@ -46,6 +47,14 @@ func Check() Info {
 	return cached
 }
 
+// Refresh asks again now ("Check for updates" in Settings).
+func Refresh() Info {
+	mu.Lock()
+	at = time.Time{}
+	mu.Unlock()
+	return Check()
+}
+
 func platform() string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -60,10 +69,15 @@ func fetch(url, current, plat string) Info {
 	client := &http.Client{Timeout: 8 * time.Second}
 	res, err := client.Get(url)
 	if err != nil {
+		info.Error = "couldn't reach monstersgate.com: check your internet connection"
 		return info
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return info // no release published yet: up to date
+	}
 	if res.StatusCode != http.StatusOK {
+		info.Error = "monstersgate.com answered " + res.Status + ": try again later"
 		return info
 	}
 	var body struct {
@@ -75,6 +89,7 @@ func fetch(url, current, plat string) Info {
 		} `json:"downloads"`
 	}
 	if json.NewDecoder(res.Body).Decode(&body) != nil || body.Version == "" {
+		info.Error = "unexpected answer from monstersgate.com: try again later"
 		return info
 	}
 	info.Latest, info.NotesURL = body.Version, body.NotesURL
