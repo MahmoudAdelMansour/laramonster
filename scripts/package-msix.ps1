@@ -12,6 +12,8 @@ $root = Split-Path -Parent $PSScriptRoot
 
 # Store versions are four numbers and the last must be 0: v0.2.0-beta.1 → 0.2.0.0
 $core = ($Tag -replace '^v', '') -replace '[-+].*$', ''
+# Manual test runs aren't tagged ("main"): any valid version will do.
+if ($core -notmatch '^\d+(\.\d+){0,2}$') { $core = '0.0.1' }
 $parts = @($core.Split('.') + @('0', '0', '0'))[0..2]
 $version = ($parts -join '.') + '.0'
 
