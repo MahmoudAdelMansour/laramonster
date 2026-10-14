@@ -14,6 +14,8 @@ trap '"$LM" stop >/dev/null 2>&1 || true; rm -rf "$WORK" 2>/dev/null || true' EX
 step() { printf '\n== %s\n' "$*"; }
 fail() {
 	echo "SMOKE FAILED: $*"
+	echo; echo "--- run dir"; ls -la "$LARAMONSTER_HOME/run" 2>&1 || true
+	echo; echo "--- laramonster status"; "$LM" status 2>&1 | head -20 || true
 	for f in "$LARAMONSTER_HOME"/logs/*; do
 		[ -f "$f" ] || continue
 		echo; echo "--- $(basename "$f") (last 40 lines)"; tail -40 "$f"
@@ -29,7 +31,12 @@ step "install PHP $PHPV"; "$LM" php:install "$PHPV" || fail "php:install"
 
 step "demo site"
 mkdir -p "$WORK/demo/public"
-printf '<?php echo "lm-smoke-ok " . PHP_VERSION;\n' > "$WORK/demo/public/index.php"
+# What a Laravel app needs: the page says which of these PHP could not load.
+cat > "$WORK/demo/public/index.php" <<'PHP'
+<?php
+$missing = array_filter(['mbstring', 'openssl', 'pdo_sqlite', 'curl', 'fileinfo', 'tokenizer', 'ctype'], fn ($e) => ! extension_loaded($e));
+echo $missing ? 'missing-extensions: ' . implode(',', $missing) : 'lm-smoke-ok ' . PHP_VERSION;
+PHP
 (cd "$WORK/demo" && "$LM" link demo && "$LM" isolate "$PHPV") || fail "link / isolate"
 "$LM" sites
 

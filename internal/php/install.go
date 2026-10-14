@@ -196,11 +196,14 @@ func InstallVersion(version string, progress fetch.Progress) (Release, error) {
 		}
 		os.Remove(archive)
 	}
-	if err := os.WriteFile(filepath.Join(tmp, "php.ini"), []byte(defaultIni(tmp)), 0o644); err != nil {
+	// The ini names the FINAL directory: tmp is renamed below, and an
+	// extension_dir pointing at the temp name loads no extension at all
+	// (Windows: no curl, mbstring, openssl, pdo… for every Laravel app).
+	dest := ManagedDir(version)
+	if err := os.WriteFile(filepath.Join(tmp, "php.ini"), []byte(defaultIni(dest)), 0o644); err != nil {
 		return rel, err
 	}
 
-	dest := ManagedDir(version)
 	_ = os.RemoveAll(dest)
 	if err := os.Rename(tmp, dest); err != nil {
 		return rel, err
