@@ -32,20 +32,40 @@ type EnumInfo struct {
 
 // Job is a job class as the runner found it.
 type Job struct {
-	Class             string            `json:"class"`
-	File              string            `json:"file"`
-	Line              int               `json:"line"`
-	Doc               string            `json:"doc,omitempty"`
-	Params            []Param           `json:"params"`
-	Queued            bool              `json:"queued"`
-	Interfaces        []string          `json:"interfaces"`
-	Traits            []string          `json:"traits"`
-	Settings          map[string]any    `json:"settings"`
-	Methods           []string          `json:"methods"`
-	HandleParams      []string          `json:"handle_params"`
-	HandleSource      string            `json:"handle_source"`
-	ConstructorSource string            `json:"constructor_source"`
-	Helpers           map[string]string `json:"helpers,omitempty"` // other methods, by name
+	Class             string         `json:"class"`
+	File              string         `json:"file"`
+	Line              int            `json:"line"`
+	Doc               string         `json:"doc,omitempty"`
+	Params            []Param        `json:"params"`
+	Queued            bool           `json:"queued"`
+	Interfaces        []string       `json:"interfaces"`
+	Traits            []string       `json:"traits"`
+	Settings          PHPMap[any]    `json:"settings"`
+	Methods           []string       `json:"methods"`
+	HandleParams      []string       `json:"handle_params"`
+	HandleSource      string         `json:"handle_source"`
+	ConstructorSource string         `json:"constructor_source"`
+	Helpers           PHPMap[string] `json:"helpers,omitempty"` // other methods, by name
+}
+
+// PHPMap is a JSON object written by PHP. json_encode turns an empty PHP
+// array into [] rather than {}, so [] (and null) read as an empty map.
+type PHPMap[V any] map[string]V
+
+func (m *PHPMap[V]) UnmarshalJSON(b []byte) error {
+	switch t := strings.TrimSpace(string(b)); {
+	case t == "null", t == "[]":
+		*m = PHPMap[V]{}
+		return nil
+	case strings.HasPrefix(t, "["):
+		return fmt.Errorf("expected an object, got a list: %.40s", t)
+	}
+	var out map[string]V
+	if err := json.Unmarshal(b, &out); err != nil {
+		return err
+	}
+	*m = out
+	return nil
 }
 
 // ScheduleEntry is one scheduled task from the app's schedule.

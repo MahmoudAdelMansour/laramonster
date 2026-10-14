@@ -314,7 +314,8 @@ switch ($command) {
                 'queued' => is_subclass_of($class, Illuminate\Contracts\Queue\ShouldQueue::class),
                 'interfaces' => array_values(array_map(fn ($i) => substr(strrchr($i, '\\'), 1), array_filter($r->getInterfaceNames(), fn ($i) => str_starts_with($i, 'Illuminate\\Contracts\\')))),
                 'traits' => array_values(array_map(fn ($t) => substr(strrchr($t, '\\') ?: '\\'.$t, 1), $r->getTraitNames())),
-                'settings' => array_filter([
+                // (object): an empty list must still be a JSON object ({}), not [].
+                'settings' => (object) array_filter([
                     'connection' => $props['connection'] ?? null,
                     'queue' => $props['queue'] ?? null,
                     'tries' => $props['tries'] ?? null,
@@ -339,7 +340,7 @@ switch ($command) {
                         }
                     }
 
-                    return $out;
+                    return (object) $out;
                 })(),
             ];
         }
