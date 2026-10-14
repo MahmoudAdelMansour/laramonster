@@ -58,6 +58,8 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
+      - name: "Unit tests (macOS: self-update, trust, terminal setup)"
+        run: go test ./internal/selfupdate/ ./internal/update/ ./internal/core/ ./internal/trust/
       - name: Smoke test (macOS)
         run: |
           go build -o bin/laramonster ./cmd/laramonster
@@ -95,6 +97,10 @@ jobs:
       run: { shell: bash }
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - name: "Unit tests (Windows: self-update)"
+        run: go test ./internal/selfupdate/ ./internal/update/
       - uses: actions/download-artifact@v4
         with: { name: linux-and-windows, path: dist }
       - name: Smoke test (Windows, plain .exe)
@@ -144,12 +150,18 @@ jobs:
 
             | System | File |
             |---|---|
-            | Windows 10/11 | `LaraMonster-windows-amd64.exe` |
+            | Windows 10/11 | [Microsoft Store](https://apps.microsoft.com/detail/9NRLB8PVVP9X) (recommended), or `LaraMonster-windows-amd64.exe` |
             | macOS 11+ (Apple Silicon and Intel) | `LaraMonster-macos-universal.zip` |
-            | Linux (x86-64) | `LaraMonster-linux-amd64.tar.gz`, unpack and run `./install.sh` |
+            | Linux (x86-64) | `LaraMonster-linux-amd64.tar.gz`, unpack and run `./LaraMonster/install.sh` |
 
-            Command-line only: `laramonster-cli-<os>-<arch>`. Verify with `SHA256SUMS`.
-            `LaraMonster-windows-x64.msix` is the Microsoft Store package (installed from the Store, signed by Microsoft).
+            ## First launch
+
+            - **macOS:** unzip, drag LaraMonster into Applications and open it. When macOS says it *could not verify* LaraMonster, click **Done**, then **System Settings → Privacy & Security → Open Anyway**.
+            - **Windows (.exe):** if *Windows protected your PC* appears, click **More info → Run anyway**.
+
+            Only the first launch asks; LaraMonster updates itself after that. Step-by-step guide: https://github.com/MahmoudAdelMansour/laramonster-releases#install
+
+            Command-line only: `laramonster-cli-<os>-<arch>`. Verify with `SHA256SUMS`. `LaraMonster-windows-x64.msix` is the Microsoft Store package.
 
             LaraMonster is free. Pro (Event Tracker, Jobs & Queues): https://monstersgate.com/laramonster
           files: dist/*

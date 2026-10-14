@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -31,8 +32,10 @@ import (
 	"laramonster/internal/core"
 	"laramonster/internal/daemon"
 	"laramonster/internal/paths"
+	"laramonster/internal/selfupdate"
 	"laramonster/internal/trust"
 	"laramonster/internal/ui"
+	"laramonster/internal/update"
 )
 
 //go:embed icons/appicon.png
@@ -51,6 +54,10 @@ func main() {
 		}
 		return
 	}
+
+	// Started by an update: let the old version finish quitting first.
+	selfupdate.WaitForPrevious(os.Args[1:])
+	selfupdate.Cleanup()
 
 	var (
 		app        *application.App
@@ -94,11 +101,20 @@ func main() {
 		Name:        "LaraMonster",
 		Description: "Local PHP & Laravel development environment",
 		Icon:        appIcon,
-		Assets:      application.AssetOptions{Handler: assetHandler(&app, func() { showOnce() })},
-		Mac:         application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: false},
-		Linux:       application.LinuxOptions{ProgramName: "laramonster"},
+		Assets: application.AssetOptions{Handler: assetHandler(&app, func() { showOnce() }, func() {
+			// Restart into the updated version. A separate engine (CLI or
+			// login service) runs the old code: stop it, so the new app
+			// starts the new engine (a login service restarts on the new files).
+			if !ownsEngine {
+				_, _ = client.Call(http.MethodPost, "/api/stop", nil)
+			}
+			quitting = true
+			app.Quit()
+		})},
+		Mac:   application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: false},
+		Linux: application.LinuxOptions{ProgramName: "laramonster"},
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: "com.monstersgate.laramonster",
+			UniqueID: instanceID(),
 			OnSecondInstanceLaunch: func(d application.SecondInstanceData) {
 				if window != nil {
 					// A laramonster:// link clicked while the app runs.
@@ -193,7 +209,7 @@ func main() {
 
 // assetHandler serves the dashboard, proxies /api to the engine's socket,
 // and adds desktop-only helpers under /app.
-func assetHandler(app **application.App, ready func()) http.Handler {
+func assetHandler(app **application.App, ready, restart func()) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(&url.URL{Scheme: "http", Host: "laramonster"})
@@ -226,11 +242,40 @@ func assetHandler(app **application.App, ready func()) http.Handler {
 			proxy.ServeHTTP(w, r)
 		case r.URL.Path == "/app/info":
 			writeJSON(w, map[string]any{"desktop": true, "version": core.Version})
+		case r.URL.Path == "/app/update" && r.Method == http.MethodGet:
+			writeJSON(w, map[string]any{"state": selfupdate.Status(), "store_url": selfupdate.StoreURL})
+		case r.URL.Path == "/app/update/install" && r.Method == http.MethodPost:
+			// The release comes from monstersgate.com here, never from the page.
+			info := update.Check()
+			if !info.Available {
+				writeError(w, "LaraMonster is up to date")
+				return
+			}
+			if err := selfupdate.Start(info.Latest, info.DownloadURL); err != nil {
+				writeError(w, err.Error())
+				return
+			}
+			writeJSON(w, map[string]any{"state": selfupdate.Status()})
+		case r.URL.Path == "/app/update/restart" && r.Method == http.MethodPost:
+			if selfupdate.Status().Phase != "ready" {
+				writeError(w, "no update is ready to install")
+				return
+			}
+			if err := selfupdate.Restart(os.Args[1:]); err != nil {
+				writeError(w, "couldn't start the new version: "+err.Error())
+				return
+			}
+			writeJSON(w, map[string]bool{"ok": true})
+			go func() { time.Sleep(300 * time.Millisecond); restart() }()
 		case r.URL.Path == "/app/ready":
 			ready()
 			writeJSON(w, map[string]bool{"ok": true})
 		case r.URL.Path == "/app/open-url":
 			// Links leave the app for the system browser, never this window.
+			if r.URL.Query().Get("url") == selfupdate.StoreURL {
+				writeJSON(w, map[string]bool{"ok": core.Open(selfupdate.StoreURL) == nil})
+				return
+			}
 			u, err := url.Parse(r.URL.Query().Get("url"))
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 				http.Error(w, "only http(s) links can be opened", http.StatusBadRequest)
@@ -251,6 +296,17 @@ func assetHandler(app **application.App, ready func()) http.Handler {
 			dashboard.ServeHTTP(w, r)
 		}
 	})
+}
+
+// instanceID allows one app per LaraMonster home: a second home
+// (LARAMONSTER_HOME, used by tests and demos) is a separate LaraMonster.
+func instanceID() string {
+	id := "com.monstersgate.laramonster"
+	if h := os.Getenv("LARAMONSTER_HOME"); h != "" {
+		// A D-Bus name on Linux: each part must start with a letter.
+		id += fmt.Sprintf(".home%x", sha256.Sum256([]byte(h)))[:16]
+	}
+	return id
 }
 
 // activateURL turns laramonster://activate?key=…&email=… (from a license
@@ -280,6 +336,12 @@ func firstOr(a, b string) string {
 		return a
 	}
 	return b
+}
+
+func writeError(w http.ResponseWriter, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

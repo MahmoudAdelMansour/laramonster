@@ -30,6 +30,9 @@ type Config struct {
 	// Off by default: the desktop app doesn't need it.
 	BrowserDashboard bool `json:"browser_dashboard"`
 	Onboarded        bool `json:"onboarded"` // the first-run setup was finished or skipped
+	// ManualUpdates turns off installing updates by themselves: the app
+	// only says a new version is out. Off (updates on) by default.
+	ManualUpdates bool `json:"manual_updates"`
 }
 
 type ServiceConfig struct {

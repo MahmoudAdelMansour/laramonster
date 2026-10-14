@@ -39,7 +39,13 @@ if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then
 	xcrun stapler staple "$APP"
 	spctl --assess --type execute --verbose "$APP"
 else
-	echo "MACOS_SIGN_IDENTITY not set: building an UNSIGNED app (Gatekeeper will block the first launch)."
+	# No Developer ID: sign ad hoc, so the bundle is intact. macOS then says it
+	# "can't verify" the app and offers Open Anyway in Privacy & Security
+	# (README → Install). Unsigned bundles are reported as "damaged" instead.
+	echo "MACOS_SIGN_IDENTITY not set: signing ad hoc (first launch needs Open Anyway)."
+	codesign --force --sign - "$APP/Contents/MacOS/laramonster"
+	codesign --force --sign - "$APP"
+	codesign --verify --strict --verbose=2 "$APP"
 fi
 (cd "$WORK" && ditto -c -k --keepParent LaraMonster.app "$ROOT/dist/LaraMonster-macos-universal.zip")
 echo "dist/LaraMonster-macos-universal.zip"

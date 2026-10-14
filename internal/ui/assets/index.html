@@ -113,9 +113,9 @@
     <div class="sidebar-foot">
       <div class="engine"><i class="dot on pulse"></i> Engine running</div>
       <div class="engine-sub">v<span x-text="(s?.version || '').replace(/^v/, '')"></span></div>
-      <!-- a newer version on monstersgate.com: one click to its download -->
-      <button type="button" class="update-chip" x-show="update?.available" x-cloak @click="openURL(update.download_url)" :title="'Download LaraMonster v' + update?.latest">
-        <svg class="i"><use href="#i-download"/></svg><span x-text="'Update available: v' + update?.latest"></span>
+      <!-- a newer version on monstersgate.com: the app installs it, or one click to its download -->
+      <button type="button" class="update-chip" x-show="update?.available || upd?.phase === 'ready'" x-cloak @click="updChipClick()" :title="'LaraMonster v' + update?.latest">
+        <svg class="i" :class="{ spin: ['downloading', 'installing'].includes(upd?.phase) }"><use :href="['downloading', 'installing'].includes(upd?.phase) ? '#i-loader' : (upd?.phase === 'ready' ? '#i-refresh' : '#i-download')"/></svg><span x-text="updChipText()"></span>
       </button>
       <div class="row" style="margin-top:12px">
         <button class="btn btn-sm btn-ghost side-btn" @click="cycleTheme()" :aria-label="'Theme: ' + theme">
@@ -1244,6 +1244,8 @@
             <div class="card-head"><h2>About</h2></div>
             <div class="card-pad small stack" style="gap:6px">
               <div class="row"><span class="grow muted">Version</span><b x-text="s.version"></b></div>
+              <div class="opt-row" x-show="desktop && upd?.kind !== 'store'"><div class="grow"><b style="color:var(--title)">Update automatically</b><div class="small muted">New versions download and install by themselves. You choose when to restart.</div></div><label class="switch"><input type="checkbox" :checked="!s.config.manual_updates" @change="setAutoUpdate($event.target.checked)" aria-label="Update automatically"><span></span></label></div>
+              <div class="small muted" x-show="desktop && upd?.kind === 'store'">The Microsoft Store keeps LaraMonster up to date.</div>
               <div class="row"><span class="muted">Home</span><span class="grow mono ellipsis" style="text-align:right" x-text="s.home" :title="s.home"></span></div>
               <div class="row" style="margin-top:8px"><button class="btn btn-sm btn-ghost" @click="openOnboard()"><svg class="i"><use href="#i-refresh"/></svg> Run setup again</button><button class="btn btn-sm btn-danger" @click="stopEngine()"><svg class="i"><use href="#i-power"/></svg> Stop LaraMonster</button></div>
             </div>
@@ -1744,6 +1746,35 @@
       </label>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" @click="modal = null">Cancel</button><button class="btn" @click="addFolder()" x-text="addTab === 'park' ? 'Park directory' : 'Link project'"></button></div>
+  </div>
+</div>
+
+<!-- ============ update ============ -->
+<div class="modal-back modal-top" x-show="updDialog" x-cloak @click.self="updDialog = false" x-transition.opacity>
+  <div class="card modal" role="dialog" aria-modal="true" aria-labelledby="upd-title">
+    <div class="card-head"><h2 id="upd-title" x-text="upd?.phase === 'ready' ? 'Update installed' : 'A new LaraMonster is out'"></h2><button class="btn btn-ghost icon-btn" @click="updDialog = false" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body card-pad stack">
+      <template x-if="upd?.phase === 'ready'">
+        <p>LaraMonster <b x-text="'v' + upd.version"></b> is installed. Restart to start using it. Your sites pause for a few seconds.</p>
+      </template>
+      <template x-if="upd?.phase !== 'ready'">
+        <p>Version <b x-text="'v' + update?.latest"></b> is available. You have <span x-text="'v' + (s?.version || '').replace(/^v/, '')"></span>.</p>
+      </template>
+      <div x-show="['downloading', 'installing'].includes(upd?.phase)">
+        <div class="small muted" x-text="upd?.phase === 'installing' ? 'Installing…' : 'Downloading… ' + (upd?.progress || 0) + '%'"></div>
+        <div class="bar" :class="{ indet: upd?.phase === 'installing' }"><i :style="'width:' + Math.max(4, upd?.progress || 0) + '%'"></i></div>
+      </div>
+      <div class="alert info small" x-show="upd?.kind === 'store'"><svg class="i"><use href="#i-info"/></svg><div>This copy comes from the Microsoft Store, which installs updates by itself. Open the Store to get it now.</div></div>
+      <div class="alert small" x-show="upd?.phase === 'error'"><svg class="i"><use href="#i-info"/></svg><div x-text="upd?.error"></div></div>
+      <a class="small" href="#" x-show="update?.notes_url" @click.prevent="openURL(update.notes_url)">What's new</a>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" @click="updDialog = false">Later</button>
+      <button class="btn" x-show="upd?.phase === 'ready'" :disabled="updRestarting" @click="restartForUpdate()"><svg class="i" :class="{ spin: updRestarting }"><use :href="updRestarting ? '#i-loader' : '#i-refresh'"/></svg> Restart now</button>
+      <button class="btn" x-show="upd?.kind === 'self' && ['idle', 'error'].includes(upd?.phase)" @click="installUpdate(false)"><svg class="i"><use href="#i-download"/></svg> <span x-text="upd?.phase === 'error' ? 'Try again' : 'Update now'"></span></button>
+      <button class="btn" x-show="upd?.kind === 'store'" @click="openURL(upd.store_url)">Open Microsoft Store</button>
+      <button class="btn" x-show="upd?.kind === 'none' || upd?.phase === 'error'" :class="{ 'btn-ghost': upd?.phase === 'error' }" @click="openURL(update?.download_url)">Download</button>
+    </div>
   </div>
 </div>
 

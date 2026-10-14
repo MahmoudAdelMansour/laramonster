@@ -16,7 +16,14 @@ func TestNewer(t *testing.T) {
 		{"v1.0.0", "0.99.0", true},
 		{"0.2.0", "0.2.0", false},
 		{"0.2.0", "0.3.0", false},
-		{"0.3.0", "0.3.0-beta.1", false},
+		{"0.3.0", "0.3.0-beta.1", true},
+		{"0.3.0-beta.1", "0.3.0", false},
+		{"0.1.0-beta.6", "0.1.0-beta.5", true},
+		{"0.1.0-beta.10", "0.1.0-beta.9", true},
+		{"0.1.0-beta.5", "0.1.0-beta.5", false},
+		{"0.1.0-rc.1", "0.1.0-beta.9", true},
+		{"0.2.0-beta.1", "0.1.9", true},
+		{"0.2.0+build.7", "0.2.0", false},
 	}
 	for _, c := range cases {
 		if got := Newer(c.a, c.b); got != c.want {
@@ -39,6 +46,12 @@ func TestFetch(t *testing.T) {
 	}
 	if i := fetch(srv.URL, "0.1.0-dev", "linux"); i.Available {
 		t.Errorf("dev builds never report updates: %+v", i)
+	}
+	if i := fetch(srv.URL, "v0.2.0-3-g660226a", "linux"); i.Available {
+		t.Errorf("builds between tags are dev builds: %+v", i)
+	}
+	if i := fetch(srv.URL, "v0.3.0-beta.2", "linux"); !i.Available {
+		t.Errorf("the release is newer than its betas: %+v", i)
 	}
 	if i := fetch(srv.URL, "v0.3.0", "linux"); i.Available {
 		t.Errorf("same version is not an update: %+v", i)

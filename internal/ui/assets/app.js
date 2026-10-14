@@ -152,6 +152,11 @@ document.addEventListener('alpine:init', () => {
     acct: null,
     signin: { email: '', password: '', key: '', showKey: false, busy: false, error: '', needAccount: false, notice: '' },
     update: null, // { available, latest, download_url } from /api/update (cached 6h by the engine)
+    upd: null, // desktop app only: { kind: self|store|none, phase, version, progress, error } from /app/update
+    updDialog: false,
+    updRestarting: false,
+    updShown: false, // the "update available" dialog opens once per launch
+    updTimer: null,
     proSites: null,
     proSite: storeGet('lm.proSite', ''),
     proError: '',
@@ -183,7 +188,7 @@ document.addEventListener('alpine:init', () => {
 
     start() {
       // Ask once shortly after launch, then every 6 hours; failures stay silent.
-      const checkUpdate = () => api('GET', '/update').then(u => { this.update = u; }).catch(() => {});
+      const checkUpdate = () => api('GET', '/update').then(u => { this.update = u; if (u.available) this.updateFound(); }).catch(() => {});
       setTimeout(checkUpdate, 4000);
       setInterval(checkUpdate, 6 * 3600 * 1000);
       this.nav = [
@@ -638,6 +643,67 @@ document.addEventListener('alpine:init', () => {
       catch (e) { this.toast(e.message, 'err'); }
     },
     openURL(u) { if (u) window.open(u, '_blank', 'noopener'); },
+
+    // ---------- updates ----------
+    // A newer version is out. The desktop app installs it by itself (unless
+    // turned off in Settings) and asks to restart; otherwise it says so once
+    // per launch. Store copies are updated by the Microsoft Store.
+    async updateFound() {
+      if (!this.desktop) return;
+      await this.loadUpd();
+      if (!this.upd) return;
+      if (this.upd.phase === 'ready') { this.updDialog = true; return; }
+      if (this.upd.kind === 'self' && !this.s?.config.manual_updates) { this.installUpdate(true); return; }
+      if (this.upd.phase === 'idle' && !this.updShown) { this.updShown = true; this.updDialog = true; }
+    },
+    async loadUpd() {
+      try { const r = await fetch('/app/update'); if (r.ok) { const j = await r.json(); this.upd = { ...j.state, store_url: j.store_url }; } } catch { /* browser dashboard */ }
+    },
+    async installUpdate(auto) {
+      try {
+        const r = await fetch('/app/update/install', { method: 'POST' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'The update could not start');
+      } catch (e) {
+        if (!auto) this.toast(e.message, 'err');
+        return;
+      }
+      if (!auto) this.updDialog = false;
+      clearInterval(this.updTimer);
+      this.updTimer = setInterval(async () => {
+        await this.loadUpd();
+        const phase = this.upd?.phase;
+        if (phase === 'ready' || phase === 'error' || phase === 'idle') clearInterval(this.updTimer);
+        if (phase === 'ready') this.updDialog = true;
+        if (phase === 'error') this.toast('Update failed: ' + this.upd.error, 'err');
+      }, 700);
+      await this.loadUpd();
+    },
+    async restartForUpdate() {
+      this.updRestarting = true;
+      try {
+        const r = await fetch('/app/update/restart', { method: 'POST' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Could not restart');
+      } catch (e) { this.updRestarting = false; this.toast(e.message, 'err'); }
+    },
+    updChipText() {
+      const v = 'v' + (this.upd?.version || this.update?.latest || '');
+      switch (this.upd?.phase) {
+        case 'downloading': return 'Downloading ' + v + '… ' + (this.upd.progress || 0) + '%';
+        case 'installing': return 'Installing ' + v + '…';
+        case 'ready': return 'Restart to update to ' + v;
+      }
+      return 'Update available: ' + v;
+    },
+    updChipClick() {
+      if (!this.desktop) { this.openURL(this.update?.download_url); return; }
+      this.updDialog = true;
+    },
+    async setAutoUpdate(on) {
+      await this.act(api('POST', '/settings', { auto_update: on }), on ? 'Updates install by themselves' : 'You’ll be told when an update is out');
+      if (on && this.update?.available) this.updateFound();
+    },
     // Pages on the licensing site (sign up, password reset), from the buy link the server sends.
     siteURL(path) { try { return new URL(path, this.acct?.buy_url || 'https://monstersgate.com').toString(); } catch { return 'https://monstersgate.com' + path; } },
     licenseExpiry() {

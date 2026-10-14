@@ -321,6 +321,8 @@ pre.env { margin: 0; background: var(--code-bg); border: 1px solid var(--border)
 .back-btn { display: none; }
 
 /* ---------- wizard ---------- */
+/* above the first-run setup screen (.onboard), below toasts */
+.modal-back.modal-top { z-index: 85; }
 .modal-back { position: fixed; inset: 0; background: rgba(5, 13, 34, .6); backdrop-filter: blur(3px); display: grid; place-items: center; z-index: 60; padding: 20px; }
 .modal { width: 100%; max-width: 540px; max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
 .modal.wide { max-width: 980px; }
@@ -371,7 +373,7 @@ pre.env { margin: 0; background: var(--code-bg); border: 1px solid var(--border)
 .joblog { background: #050B1C; color: #CBD3EA; border-radius: 12px; padding: 12px 14px; max-height: 220px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-all; font-size: 12px; }
 
 /* ---------- jobs, toasts ---------- */
-.dock { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 10px; width: 360px; z-index: 70; pointer-events: none; }
+.dock { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 10px; width: 360px; z-index: 90; pointer-events: none; }
 .dock > * { pointer-events: auto; }
 .toast, .job { background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(7, 20, 49, .18); padding: 12px 14px; }
 .toast { display: flex; gap: 10px; align-items: flex-start; color: var(--title); }

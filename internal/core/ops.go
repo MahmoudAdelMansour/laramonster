@@ -195,6 +195,7 @@ type Settings struct {
 	Editor    *string `json:"editor"`
 
 	BrowserDashboard *bool `json:"browser_dashboard"`
+	AutoUpdate       *bool `json:"auto_update"`
 }
 
 func UpdateSettings(s Settings) error {
@@ -226,6 +227,9 @@ func UpdateSettings(s Settings) error {
 		}
 		if s.BrowserDashboard != nil {
 			c.BrowserDashboard = *s.BrowserDashboard
+		}
+		if s.AutoUpdate != nil {
+			c.ManualUpdates = !*s.AutoUpdate
 		}
 		return nil
 	})
