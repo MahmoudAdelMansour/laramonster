@@ -112,7 +112,7 @@
     </nav>
     <div class="sidebar-foot">
       <div class="engine"><i class="dot on pulse"></i> Engine running</div>
-      <div class="engine-sub">v<span x-text="s?.version"></span></div>
+      <div class="engine-sub">v<span x-text="(s?.version || '').replace(/^v/, '')"></span></div>
       <!-- a newer version on monstersgate.com: one click to its download -->
       <button type="button" class="update-chip" x-show="update?.available" x-cloak @click="openURL(update.download_url)" :title="'Download LaraMonster v' + update?.latest">
         <svg class="i"><use href="#i-download"/></svg><span x-text="'Update available: v' + update?.latest"></span>
