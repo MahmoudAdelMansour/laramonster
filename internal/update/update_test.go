@@ -3,6 +3,7 @@ package update
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -63,5 +64,21 @@ func TestFetch(t *testing.T) {
 	defer none.Close()
 	if i := fetch(none.URL, "v0.1.0", "linux"); i.Available || i.Error != "" {
 		t.Errorf("no release yet is simply up to date: %+v", i)
+	}
+}
+
+// monstersgate.com sits behind Cloudflare, which answers 403 to Go's
+// default "Go-http-client" agent.
+func TestFetchNamesLaraMonster(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.UserAgent(), "LaraMonster/") {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(`{"version":"0.3.0"}`))
+	}))
+	defer srv.Close()
+	if i := fetch(srv.URL, "v0.2.0", "linux"); !i.Available || i.Error != "" {
+		t.Fatalf("blocked: %+v", i)
 	}
 }

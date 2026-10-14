@@ -56,6 +56,7 @@ func main() {
 	}
 
 	// Started by an update: let the old version finish quitting first.
+	selfupdate.UserAgent = update.UserAgent()
 	selfupdate.WaitForPrevious(os.Args[1:])
 	selfupdate.Cleanup()
 

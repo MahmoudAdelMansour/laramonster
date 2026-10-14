@@ -196,8 +196,21 @@ func SumsURL(downloadURL string) string {
 
 var client = &http.Client{Timeout: 30 * time.Minute}
 
+// UserAgent is set by the app (update.UserAgent): Go's default agent is
+// refused by some firewalls.
+var UserAgent = "LaraMonster"
+
+func get(u string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", UserAgent)
+	return client.Do(req)
+}
+
 func download(u, dest string, progress func(int)) error {
-	res, err := client.Get(u)
+	res, err := get(u)
 	if err != nil {
 		return fmt.Errorf("couldn't download the update: %w", err)
 	}
@@ -237,7 +250,7 @@ func (c *counter) Write(p []byte) (int, error) {
 // verify checks a downloaded file against the release's SHA256SUMS. A file
 // missing from the list, or a different hash, is refused.
 func verify(file, sumsURL string) error {
-	res, err := client.Get(sumsURL)
+	res, err := get(sumsURL)
 	if err != nil {
 		return fmt.Errorf("couldn't check the download: %w", err)
 	}

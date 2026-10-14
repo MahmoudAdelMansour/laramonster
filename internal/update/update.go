@@ -47,6 +47,11 @@ func Check() Info {
 	return cached
 }
 
+// UserAgent names LaraMonster in requests to monstersgate.com and GitHub.
+func UserAgent() string {
+	return "LaraMonster/" + strings.TrimPrefix(core.Version, "v") + " (" + runtime.GOOS + "; +https://monstersgate.com/laramonster)"
+}
+
 // Refresh asks again now ("Check for updates" in Settings).
 func Refresh() Info {
 	mu.Lock()
@@ -67,7 +72,15 @@ func platform() string {
 func fetch(url, current, plat string) Info {
 	info := Info{Current: strings.TrimPrefix(current, "v"), CheckedAt: time.Now().Format(time.RFC3339)}
 	client := &http.Client{Timeout: 8 * time.Second}
-	res, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		info.Error = err.Error()
+		return info
+	}
+	// Cloudflare in front of monstersgate.com refuses Go's default
+	// "Go-http-client" agent with 403.
+	req.Header.Set("User-Agent", UserAgent())
+	res, err := client.Do(req)
 	if err != nil {
 		info.Error = "couldn't reach monstersgate.com: check your internet connection"
 		return info
