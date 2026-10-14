@@ -19,6 +19,9 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual runs (Actions → Release → Run workflow): build and smoke-test
+  # everything without publishing.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -120,6 +123,7 @@ jobs:
 
   publish:
     needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4

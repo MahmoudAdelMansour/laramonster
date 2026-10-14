@@ -12,7 +12,15 @@ HTTP_PORT="${SMOKE_PORT:-18080}"
 HTTPS_PORT=$((HTTP_PORT + 363))
 trap '"$LM" stop >/dev/null 2>&1 || true; rm -rf "$WORK" 2>/dev/null || true' EXIT
 step() { printf '\n== %s\n' "$*"; }
-fail() { echo "SMOKE FAILED: $*"; "$LM" logs 2>/dev/null | tail -60 || true; "$LM" stop >/dev/null 2>&1 || true; exit 1; }
+fail() {
+	echo "SMOKE FAILED: $*"
+	for f in "$LARAMONSTER_HOME"/logs/*; do
+		[ -f "$f" ] || continue
+		echo; echo "--- $(basename "$f") (last 40 lines)"; tail -40 "$f"
+	done
+	"$LM" stop >/dev/null 2>&1 || true
+	exit 1
+}
 
 step "version";       "$LM" --version
 step "ports $HTTP_PORT / $HTTPS_PORT"; "$LM" port "$HTTP_PORT"; "$LM" port --https "$HTTPS_PORT"
