@@ -2,8 +2,15 @@
 # installer and publishes them on the public downloads repository,
 # MahmoudAdelMansour/laramonster-releases. The source stays in this private repo.
 #
-# Needs one secret here (Settings → Secrets → Actions): RELEASES_TOKEN, a
-# fine-grained token with "Contents: Read and write" on laramonster-releases only.
+# Secrets (Settings → Secrets and variables → Actions):
+#   RELEASES_TOKEN       fine-grained token, "Contents: Read and write" on laramonster-releases only (required)
+#   macOS signing (optional; without them the app is built unsigned):
+#   MACOS_CERT_P12       base64 of the "Developer ID Application" certificate exported as .p12
+#   MACOS_CERT_PASSWORD  the .p12 password
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD   for notarisation (app-specific password)
+#
+# Nothing is published unless the smoke test passes on Linux, macOS and Windows:
+# install PHP, link a demo site, start the engine, load the page (scripts/smoke.sh).
 name: Release
 
 on:
@@ -26,6 +33,8 @@ jobs:
       - run: make test
       - name: Linux app + CLI
         run: make cli app VERSION=${{ github.ref_name }}
+      - name: Smoke test (Linux)
+        run: ./scripts/smoke.sh bin/laramonster 8.4
       - run: ./scripts/package-linux.sh amd64
       - name: CLI for every platform + Windows app (cross-compiled)
         run: |
@@ -43,12 +52,52 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
-      - run: VERSION=${{ github.ref_name }} ./scripts/package-macos.sh
+      - name: Smoke test (macOS)
+        run: |
+          go build -o bin/laramonster ./cmd/laramonster
+          ./scripts/smoke.sh bin/laramonster 8.4
+      - name: Signing certificate (when the secrets exist)
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        if: env.MACOS_CERT_P12 != ''
+        run: |
+          KC="$RUNNER_TEMP/sign.keychain-db"; PW="$(openssl rand -hex 16)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$PW" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$PW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          ID="$(security find-identity -v -p codesigning "$KC" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)"/\1/')"
+          echo "MACOS_SIGN_IDENTITY=$ID" >> "$GITHUB_ENV"
+      - name: Package (signed + notarised when possible)
+        env:
+          VERSION: ${{ github.ref_name }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: ./scripts/package-macos.sh
       - uses: actions/upload-artifact@v4
         with: { name: macos, path: dist/ }
 
+  smoke-windows:
+    needs: linux
+    runs-on: windows-latest
+    defaults:
+      run: { shell: bash }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: linux-and-windows, path: dist }
+      - name: Smoke test (Windows)
+        run: ./scripts/smoke.sh dist/laramonster-windows-amd64.exe 8.4
+      # Windows signing goes here once a provider is chosen (SSL.com eSigner or
+      # Azure Trusted Signing): sign dist/*.exe, then upload the signed files.
+
   publish:
-    needs: [linux, macos]
+    needs: [linux, macos, smoke-windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4

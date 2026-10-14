@@ -1,6 +1,7 @@
 #!/bin/sh
 # macOS only: builds a universal LaraMonster.app (arm64 + x86_64) and zips it
-# to dist/LaraMonster-macos-universal.zip. Unsigned until a Developer ID is set up.
+# to dist/LaraMonster-macos-universal.zip. Signed + notarised when the Apple
+# secrets are set (see .github/workflows/release.yml), unsigned otherwise.
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${VERSION:-0.1.0-dev}"
@@ -27,5 +28,18 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/icon.icns"
 mkdir -p dist
+if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then
+	# Developer ID signing (hardened runtime, the CLI inside first), then
+	# Apple notarisation and stapling, so Gatekeeper opens it without warnings.
+	codesign --force --timestamp --options runtime --sign "$MACOS_SIGN_IDENTITY" "$APP/Contents/MacOS/laramonster"
+	codesign --force --timestamp --options runtime --sign "$MACOS_SIGN_IDENTITY" "$APP"
+	codesign --verify --strict --verbose=2 "$APP"
+	(cd "$WORK" && ditto -c -k --keepParent LaraMonster.app notarize.zip)
+	xcrun notarytool submit "$WORK/notarize.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+	xcrun stapler staple "$APP"
+	spctl --assess --type execute --verbose "$APP"
+else
+	echo "MACOS_SIGN_IDENTITY not set: building an UNSIGNED app (Gatekeeper will block the first launch)."
+fi
 (cd "$WORK" && ditto -c -k --keepParent LaraMonster.app "$ROOT/dist/LaraMonster-macos-universal.zip")
 echo "dist/LaraMonster-macos-universal.zip"
