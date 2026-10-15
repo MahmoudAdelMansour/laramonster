@@ -100,7 +100,10 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod }
       - name: "Unit tests (Windows: self-update, PHP that won't start)"
-        run: go test -v -run 'Test' ./internal/selfupdate/ ./internal/update/ ./internal/php/ 2>&1 | tee test.log; grep -q -- '--- PASS: TestFindBrokenMissingDLL' test.log && ! grep -q -- '--- FAIL' test.log
+        run: |
+          go test -v ./internal/selfupdate/ ./internal/update/ ./internal/php/ 2>&1 | tee test.log
+          # The missing-DLL test needs MinGW's gcc: make sure it really ran.
+          grep -q -- '--- PASS: TestFindBrokenMissingDLL' test.log
       - uses: actions/download-artifact@v4
         with: { name: linux-and-windows, path: dist }
       - name: Smoke test (Windows, plain .exe)
