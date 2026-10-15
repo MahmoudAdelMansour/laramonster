@@ -37,3 +37,13 @@ func TestInstallMacSwapsTheAppBundle(t *testing.T) {
 		t.Fatal("an installed .app must update itself")
 	}
 }
+
+func TestKindOfTranslocatedApp(t *testing.T) {
+	exe := "/private/var/folders/mj/3blc6/T/AppTranslocation/3630-4FCD-83C5/d/LaraMonster.app/Contents/MacOS/laramonster-app"
+	if got := KindOf(exe); got != Translocated {
+		t.Errorf("KindOf(translocated) = %q", got)
+	}
+	if got := KindOf("/Applications/LaraMonster.app/Contents/MacOS/laramonster-app"); got != Self {
+		t.Errorf("KindOf(/Applications) = %q", got)
+	}
+}

@@ -182,6 +182,29 @@ func InstallSystem() error {
 	return truststore.Install(cert, truststore.WithPrefix("laramonster-"))
 }
 
+// InstallMacUser trusts the CA in the login keychain, as the current user.
+// macOS shows its own password dialog for the trust change. Done as root
+// (sudo, osascript "with administrator privileges") macOS refuses it:
+// "The authorization was denied since no user interaction was possible".
+// Safari and Chrome accept a CA trusted this way.
+func InstallMacUser() error {
+	home, _ := os.UserHomeDir()
+	keychain := filepath.Join(home, "Library", "Keychains", "login.keychain-db")
+	out, err := exec.Command("security", "add-trusted-cert", "-r", "trustRoot", "-k", keychain, RootCert()).CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	msg := strings.TrimSpace(string(out))
+	low := strings.ToLower(msg)
+	if strings.Contains(low, "cancel") || strings.Contains(low, "authorization was denied") {
+		return errors.New("macOS didn't get permission to trust the certificate (the password dialog was cancelled or closed): click Trust again and enter your Mac password")
+	}
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("macOS refused to trust the certificate: %s", msg)
+}
+
 // InstallBrowsers adds the CA to the NSS stores used by Firefox and, on
 // Linux, Chrome. Runs as the current user; needs certutil.
 func InstallBrowsers() error {

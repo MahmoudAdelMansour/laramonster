@@ -26,6 +26,9 @@ type Config struct {
 	Tracking  map[string]bool           `json:"tracking"` // site name -> Event Tracker records it (Pro)
 	Services  map[string]*ServiceConfig `json:"services"`
 	Editor    string                    `json:"editor"` // command used by "open in editor", e.g. "code"
+	// PHPSettings are php.ini settings by scope: "global", a version ("8.4")
+	// or "site:<name>". Later scopes win: global < version < site.
+	PHPSettings map[string]map[string]string `json:"php_settings,omitempty"`
 	// BrowserDashboard also serves the UI at dashboard.laramonster.<tld>.
 	// Off by default: the desktop app doesn't need it.
 	BrowserDashboard bool `json:"browser_dashboard"`

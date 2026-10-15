@@ -240,11 +240,31 @@ func windowsReleases() ([]Release, error) {
 	return out, nil
 }
 
+// archiveLabel names a download for the progress bar.
+func archiveLabel(url string) string {
+	switch name := filepath.Base(url); {
+	case strings.Contains(name, "-fpm-"):
+		return "PHP-FPM (serves your sites)"
+	case strings.Contains(name, "-cli-"):
+		return "PHP command line"
+	default:
+		return name
+	}
+}
+
 // ManagedDir is where LaraMonster installs a PHP version.
 func ManagedDir(version string) string { return filepath.Join(paths.PHP(), Normalize(version)) }
 
+// Steps reports file i of n of a multi-file download (core.Job.Step).
+type Steps func(i, n int, label string)
+
 // InstallVersion downloads and unpacks a PHP version into ManagedDir.
 func InstallVersion(version string, progress fetch.Progress) (Release, error) {
+	return InstallVersionSteps(version, progress, nil)
+}
+
+// InstallVersionSteps is InstallVersion that also names each file it downloads.
+func InstallVersionSteps(version string, progress fetch.Progress, step Steps) (Release, error) {
 	version = Normalize(version)
 	list, err := Available()
 	if err != nil {
@@ -265,23 +285,23 @@ func InstallVersion(version string, progress fetch.Progress) (Release, error) {
 	}
 	defer os.RemoveAll(tmp)
 
-	// Spread progress over all archives of this release.
-	var base int64
 	for i, url := range rel.urls {
+		if step != nil {
+			step(i+1, len(rel.urls), archiveLabel(url))
+		}
 		archive := filepath.Join(tmp, filepath.Base(url))
 		sum := rel.sha256
 		if i < len(rel.sums) {
 			sum = rel.sums[i]
 		}
-		n, err := fetch.Download(url, archive, sum, func(done, total int64) {
+		_, err := fetch.Download(url, archive, sum, func(done, total int64) {
 			if progress != nil {
-				progress(base+done, -1)
+				progress(done, total)
 			}
 		})
 		if err != nil {
 			return rel, err
 		}
-		base += n
 		if err := fetch.Extract(archive, tmp); err != nil {
 			return rel, err
 		}

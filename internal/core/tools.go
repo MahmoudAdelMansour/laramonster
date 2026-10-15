@@ -44,7 +44,7 @@ func PHPCommand(dir string, args ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(inst.CLI, args...)
+	cmd := exec.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), inst.Env()...)
 	return cmd, nil

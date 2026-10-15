@@ -188,6 +188,11 @@ document.addEventListener('alpine:init', () => {
     // Packages tab of the site panel: { installed, php, sel, job } for panel.name.
     sitePk: { loading: false, error: '', installed: [], php: null, sel: [], job: null },
     fixJobs: {}, // warning key → job id of its one-click fix
+    // Performance (Pro): checkup, recorded requests, load test.
+    pf: { tab: storeGet('lm.pfTab', 'checkup'), checkup: null, cLoading: false, cError: '', report: null, tracking: false, rLoading: false, rError: '',
+      fixJobs: {}, explain: {}, load: { path: '/', users: 10, seconds: 15, job: null, confirm: false }, hover: { key: '', i: -1 } },
+    // php.ini settings editor: scope "global", a version, or "site:<name>".
+    ini: { open: false, scope: '', view: null, loading: false, error: '', edits: {}, saving: false, q: '', newName: '', newVal: '' },
     wizardSteps: ['Name & domain', 'Stack', 'Packages', 'Review'],
     progressStages: STAGES,
     nav: [],
@@ -204,8 +209,10 @@ document.addEventListener('alpine:init', () => {
         { id: 'php', label: 'PHP', icon: 'code', group: 'Environment', count: () => this.s?.php.length ?? null },
         { id: 'services', label: 'Services', icon: 'db', count: () => this.s ? (this.runningServices() || null) : null },
         { id: 'tools', label: 'Tools', icon: 'wrench', count: () => null },
-        { id: 'events', label: 'Events', icon: 'zap', group: 'Pro', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
+        { id: 'activity', label: 'Activity', icon: 'timeline', group: 'Pro', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
+        { id: 'events', label: 'Events', icon: 'zap', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
         { id: 'jobs', label: 'Jobs & Queues', icon: 'box', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
+        { id: 'performance', label: 'Performance', icon: 'gauge', count: () => this.s && !this.s.pro ? 'PRO' : (this.pf.report?.n_plus_one?.length || null), hot: () => !!this.pf.report?.n_plus_one?.length, pro: true },
         { id: 'monitor', label: 'Monitor', icon: 'activity', group: 'System', count: () => this.monAlerts() || null, hot: () => true },
         { id: 'account', label: 'Account', icon: 'user', count: () => this.acctAlert() ? '!' : null, hot: () => true },
         { id: 'logs', label: 'Logs', icon: 'logs', count: () => null },
@@ -236,8 +243,17 @@ document.addEventListener('alpine:init', () => {
         if (this.page === 'monitor') this.loadMonitor();
         if (this.page === 'settings' && this.desktop) this.loadUpd();
         if (this.page === 'account') this.loadAccount();
-        if (this.page === 'events') this.openPro('events');
+        // Activity (what ran, recorded) and Events (the app's event classes)
+        // share the Event Tracker's data and site picker.
+        if (['activity', 'events'].includes(this.page)) {
+          // Each page has its own search; a cross-link may hand one over.
+          if (!this.ev.keepQ && this.ev.tab !== (this.page === 'activity' ? 'live' : 'catalog')) this.ev.q = '';
+          this.ev.keepQ = false;
+        }
+        if (this.page === 'activity') { this.ev.tab = 'live'; this.openPro('events'); }
+        if (this.page === 'events') { this.ev.tab = 'catalog'; this.openPro('events'); }
         if (this.page === 'jobs') this.openPro('jobs');
+        if (this.page === 'performance') this.openPro('performance');
         window.scrollTo(0, 0);
       };
       window.addEventListener('hashchange', route);
@@ -254,7 +270,7 @@ document.addEventListener('alpine:init', () => {
       this.loadTools();
       setInterval(() => this.refresh(), 2000);
       setInterval(() => { if (this.page === 'monitor' && !this.offline) this.loadMonitor(); }, 2000);
-      setInterval(() => { if (this.page === 'events' && this.ev.tab === 'live' && this.proSite && !this.offline && document.visibilityState === 'visible') this.loadTraces(true); }, 3000);
+      setInterval(() => { if (this.page === 'activity' && this.proSite && !this.offline && document.visibilityState === 'visible') this.loadTraces(true); }, 3000);
       this.loadAccount(true);
       setInterval(() => this.loadAccount(true), 60000);
       // The nav badge: a light peek every 30 s that doesn't speed up sampling.
@@ -295,6 +311,7 @@ document.addEventListener('alpine:init', () => {
           }
           if (j.title.startsWith('Install PHP') || j.title === 'Install the Visual C++ runtime') this.loadAvailable(true);
           if (j.id === this.sitePk.job && this.panel.open) this.loadSitePackages();
+          if (Object.values(this.pf.fixJobs).includes(j.id) && this.page === 'performance') this.loadCheckup();
           if (j.title.startsWith('Install') || j.title === 'Set up Mail') this.loadTools();
           if (j.title === 'Set up Mail') this.loadMail();
         }
@@ -312,7 +329,9 @@ document.addEventListener('alpine:init', () => {
       try {
         const res = await promise;
         if (res && res.config) this.apply(res); else this.refresh();
-        if (ok) this.toast(ok, 'ok');
+        // A started job shows its own progress card: no second message.
+        const isJob = res && typeof res.id === 'number' && 'title' in res;
+        if (ok && !isJob) this.toast(ok, 'ok');
         return res ?? true;
       } catch (e) {
         this.toast(e.message, 'err');
@@ -390,15 +409,19 @@ document.addEventListener('alpine:init', () => {
       this.sitePk = { loading: false, error: '', installed: [], php: null, sel: [], job: null };
       if (this.panel.tab === 'env') this.loadEnv();
       if (this.panel.tab === 'packages') this.loadSitePackages();
+      this.ini = { ...this.ini, open: false, scope: '', view: null, edits: {} };
+      if (this.panel.tab === 'php') this.loadIni('site:' + site.name);
     },
     closeSitePanel() {
       if (this.envDirty() && !confirmSafe('Discard your unsaved .env changes?')) return;
+      if (this.ini.scope.startsWith('site:') && this.iniDirty() && !confirmSafe('Discard your unsaved PHP settings?')) return;
       this.panel.open = false;
     },
     setPanelTab(tab) {
       this.panel.tab = tab;
       if (tab === 'env' && !this.env.file) this.loadEnv();
       if (tab === 'packages' && !this.sitePk.php && !this.sitePk.loading) this.loadSitePackages();
+      if (tab === 'php' && this.ini.scope !== 'site:' + this.panel.name) this.loadIni('site:' + this.panel.name);
     },
     addrSuffix(site) { return site.url.split('://')[1].slice(site.name.length); },
     async saveAddress() {
@@ -512,6 +535,34 @@ document.addEventListener('alpine:init', () => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (this.panel.tab === 'env') this.saveEnv(); }
     },
     jobBusy(title) { return !!this.s?.jobs.some(j => j.title === title && !j.done); },
+    // ---------- progress of a running job ----------
+    jobFor(title) { return (this.s?.jobs || []).find(j => j.title === title && !j.done) || null; },
+    mbText(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(0, Math.round(n / 1024)) + ' KB'; },
+    jobPct(j) { return j && !j.done && j.progress >= 0 ? Math.min(100, Math.round(j.progress * 100)) + '%' : ''; },
+    // "12.4 of 40.1 MB" while downloading, else what the job is doing.
+    jobSizes(j) {
+      const t = j?.transfer;
+      if (!t) return j?.error || j?.detail || '';
+      if (!t.done) return 'Starting download…';
+      return t.total > 0 ? this.mbText(t.done) + ' of ' + this.mbText(t.total) : this.mbText(t.done) + ' downloaded';
+    },
+    // "2.3 MB/s · 15 s left"
+    jobSpeed(j) {
+      const t = j?.transfer;
+      if (!t || !(t.rate > 0)) return '';
+      let out = this.mbText(t.rate) + '/s';
+      if (t.total > 0 && t.done < t.total) {
+        const sec = Math.ceil((t.total - t.done) / t.rate);
+        out += ' · ' + (sec < 60 ? sec + ' s' : Math.round(sec / 60) + ' min') + ' left';
+      }
+      return out;
+    },
+    jobStep(j) {
+      const t = j?.transfer;
+      if (!t) return '';
+      if (t.steps > 1) return 'File ' + t.step + ' of ' + t.steps + (t.label ? ' · ' + t.label : '');
+      return t.label || '';
+    },
     visibleJobs() {
       const now = Date.now();
       return (this.s?.jobs || [])
@@ -713,6 +764,7 @@ document.addEventListener('alpine:init', () => {
         case 'error': return { word: 'Update failed', badge: 'badge-red', detail: this.upd.error, alert: 'error' };
       }
       if (this.update?.error) return { word: 'Couldn’t check', badge: 'badge-red', detail: 'Couldn’t check for updates: ' + this.update.error + '.', alert: 'error' };
+      if (this.upd?.kind === 'translocated') return { word: this.update?.available ? 'Update available' : 'Can’t update', badge: 'badge-orange', detail: 'Move LaraMonster into your Applications folder and open it from there: macOS runs it from a read-only copy while it stays where it was downloaded, so it can’t update itself.', alert: 'info' };
       if (this.update?.available) return { word: 'Update available', badge: 'badge-orange', detail: v + ' is available.' };
       if (!this.update) return { word: 'Not checked', badge: '', detail: '' };
       if (/dev|-\d+-g[0-9a-f]+$|-dirty$/.test(this.update.current || '')) return { word: 'Development build', badge: '', detail: 'This is a development build, so it doesn’t update itself.' };
@@ -771,6 +823,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.proSite) return;
       if (which === 'events') { this.loadTraces(); if (this.ev.tab === 'catalog') this.loadCatalog(); }
       if (which === 'jobs') { this.jb.tab === 'queues' ? this.loadQueues() : this.loadJobs(); }
+      if (which === 'performance') this.pfTab(this.pf.tab);
     },
     async loadProSites() {
       try { this.proSites = await api('GET', '/pro/sites'); } catch (e) { this.proFail(e); }
@@ -781,7 +834,8 @@ document.addEventListener('alpine:init', () => {
       storeSet('lm.proSite', name);
       this.ev = { ...this.ev, traces: [], sel: null, trace: null, catalog: null, cls: null, result: null, exported: null };
       this.jb = { ...this.jb, data: null, cls: null, result: null, artisanOut: null, queues: null, exported: null, log: null };
-      if (!quiet) this.openPro(this.page);
+      this.pf = { ...this.pf, checkup: null, report: null, explain: {}, load: { ...this.pf.load, job: null } };
+      if (!quiet) this.openPro(this.page === 'activity' ? 'events' : this.page);
     },
     paramInput(p) {
       return { int: 'number', float: 'number', date: 'datetime-local' }[p.kind] || 'text';
@@ -898,10 +952,123 @@ document.addEventListener('alpine:init', () => {
     },
     showResultTrace() {
       const id = this.ev.result?.trace?.id;
-      this.ev.tab = 'live';
+      location.hash = 'activity';
       if (id) this.loadTraces(true).then(() => this.openTrace(id));
     },
+    // Events → the recordings where this event fired.
+    eventActivity(cls) {
+      this.ev.q = shortClass(cls);
+      this.ev.keepQ = true;
+      location.hash = 'activity';
+    },
+    // Activity → this event's page in the catalog.
+    async openEventClass(cls) {
+      location.hash = 'events';
+      await this.loadCatalog();
+      this.ev.q = '';
+      if ((this.ev.catalog || []).some(e => e.class === cls)) this.pickEvent(cls);
+      else this.toast(shortClass(cls) + ' isn’t one of this app’s event classes (it comes from Laravel or a package)', 'err');
+    },
     resultRows(r) { return (r?.trace?.events || []); },
+
+    // ---------- Performance ----------
+    pfTab(tab) {
+      this.pf.tab = tab;
+      storeSet('lm.pfTab', tab);
+      if (!this.proSite) return;
+      if (tab === 'checkup' && !this.pf.checkup) this.loadCheckup();
+      if (tab === 'requests') this.loadPerfRequests();
+      if (tab === 'load' && !this.pf.report) this.loadPerfRequests(true);
+    },
+    async loadCheckup() {
+      const site = this.proSite;
+      this.pf.cLoading = true; this.pf.cError = '';
+      try { const c = await api('GET', '/pro/perf/checkup?site=' + encodeURIComponent(site)); if (this.proSite === site) this.pf.checkup = c; }
+      catch (e) { this.pf.cError = e.message; this.proFail(e); }
+      finally { this.pf.cLoading = false; }
+    },
+    async loadPerfRequests(quiet) {
+      const site = this.proSite;
+      if (!quiet) this.pf.rLoading = true;
+      this.pf.rError = '';
+      try {
+        const r = await api('GET', '/pro/perf/requests?site=' + encodeURIComponent(site));
+        if (this.proSite === site) { this.pf.report = r.report; this.pf.tracking = r.tracking; }
+      } catch (e) { this.pf.rError = e.message; this.proFail(e); }
+      finally { this.pf.rLoading = false; }
+    },
+    checkupGroups() { return [...new Set((this.pf.checkup?.checks || []).map(c => c.group))]; },
+    checkIcon(c) { return { good: 'check', warn: 'alert', bad: 'alert', info: 'info' }[c.status]; },
+    checkWord(c) { return { good: 'Good', warn: 'Improve', bad: 'Fix this', info: 'Note' }[c.status]; },
+    scoreTone(n) { return n >= 85 ? 'good' : n >= 60 ? 'warn' : 'bad'; },
+    pfFixState(action) {
+      const id = this.pf.fixJobs[action];
+      const j = id && (this.s?.jobs || []).find(x => x.id === id);
+      return !j ? '' : !j.done ? 'running' : j.error ? 'failed' : 'done';
+    },
+    async runPerfFix(fix) {
+      try {
+        const job = await api('POST', '/pro/perf/fix', { site: this.proSite, action: fix.action });
+        this.pf.fixJobs = { ...this.pf.fixJobs, [fix.action]: job.id };
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    async setPerfTracking(on) {
+      await this.setTracking(on);
+      this.loadPerfRequests(true);
+    },
+    sqlKey(q) { return q.sql + '|' + (q.src || ''); },
+    async explainQuery(q) {
+      const k = this.sqlKey(q);
+      this.pf.explain = { ...this.pf.explain, [k]: { loading: true } };
+      try {
+        const r = await api('POST', '/pro/perf/explain', { site: this.proSite, sql: q.sql, bindings: q.bindings || [], conn: q.conn || '' });
+        this.pf.explain = { ...this.pf.explain, [k]: { result: r } };
+      } catch (e) { this.pf.explain = { ...this.pf.explain, [k]: { error: e.message } }; }
+    },
+    ms(v) { return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + ' s' : (v >= 10 ? Math.round(v) : (Math.round(v * 10) / 10)) + ' ms'; },
+    // Open a recorded request in Activity.
+    openPerfTrace(id) {
+      if (!id) return;
+      location.hash = 'activity';
+      this.loadTraces(true).then(() => this.openTrace(id));
+    },
+    perfRoutes() { return (this.pf.report?.routes || []).filter(r => r.route.startsWith('GET ') && !r.route.includes('{')).map(r => r.route.slice(4)); },
+    loadJob() { const id = this.pf.load.job; return id ? (this.s?.jobs || []).find(j => j.id === id) : (this.s?.jobs || []).find(j => j.title.startsWith('Load test') && !j.done); },
+    loadResult() { const j = this.loadJob(); return j?.done && !j.error ? j.result : null; },
+    async startLoadTest() {
+      const l = this.pf.load;
+      try {
+        const job = await api('POST', '/pro/perf/load', { site: this.proSite, path: l.path.trim() || '/', users: +l.users, seconds: +l.seconds });
+        this.pf.load = { ...l, job: job.id, confirm: false };
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    // A load test's chart: one series, scaled to its own range from zero.
+    loadPath(key, w, h, area) {
+      const pts = this.loadResult()?.series || [];
+      if (pts.length < 2) return '';
+      const vals = pts.map(p => p[key] || 0);
+      const top = Math.max(...vals, 1) * 1.15;
+      const x = i => (i / (pts.length - 1)) * w;
+      const y = v => h - 2 - (v / top) * (h - 4);
+      let d = vals.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+      if (area) d += ` L${w} ${h} L0 ${h} Z`;
+      return d;
+    },
+    loadHover(key, e) {
+      const pts = this.loadResult()?.series || [];
+      if (!pts.length) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const i = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (pts.length - 1));
+      this.pf.hover = { key, i };
+    },
+    loadPoint(key, fmt) {
+      const pts = this.loadResult()?.series || [];
+      const h = this.pf.hover;
+      if (h.key !== key || h.i < 0 || !pts[h.i]) return null;
+      return { left: pts.length > 1 ? h.i / (pts.length - 1) * 100 : 0, text: fmt(pts[h.i][key]) + ' · ' + pts[h.i].t + ' s' };
+    },
 
     // ---------- Jobs & Queues ----------
     async loadJobs(force) {
@@ -1338,6 +1505,81 @@ document.addEventListener('alpine:init', () => {
       } catch (e) { this.toast(e.message, 'err'); }
     },
     wizardSite() { return this.slug(this.wizard.f.domain || this.wizard.f.name); },
+
+    // ---------- php.ini settings ----------
+    openIni(scope) { this.ini.open = true; this.loadIni(scope); },
+    closeIni() {
+      if (this.iniDirty() && !confirmSafe('Discard your unsaved PHP settings?')) return;
+      this.ini.open = false;
+    },
+    async loadIni(scope) {
+      this.ini = { ...this.ini, scope, loading: true, error: '', edits: {}, q: '', newName: '', newVal: '' };
+      try {
+        const v = await api('GET', '/php/settings?scope=' + encodeURIComponent(scope));
+        if (this.ini.scope === scope) this.ini.view = v;
+      } catch (e) { if (this.ini.scope === scope) { this.ini.error = e.message; this.ini.view = null; } }
+      finally { this.ini.loading = false; }
+    },
+    iniLayer() { const sc = this.ini.scope; return sc === 'global' ? 'global' : sc.startsWith('site:') ? 'site' : 'version'; },
+    iniTitle() {
+      const sc = this.ini.scope;
+      if (sc === 'global') return 'PHP settings for every version';
+      if (sc.startsWith('site:')) return 'PHP settings for ' + sc.slice(5);
+      return 'PHP ' + sc + ' settings';
+    },
+    iniSourceLabel(src) {
+      return { 'php.ini': 'php.ini', global: 'All versions', version: 'PHP ' + (this.ini.view?.version || ''), site: 'This site' }[src] || src;
+    },
+    // The value set at this scope (pending edits first), or ''.
+    iniOwn(r) { return r.name in this.ini.edits ? (this.ini.edits[r.name] ?? '') : (r.layers[this.iniLayer()] ?? ''); },
+    // What applies without this scope's own value.
+    iniInherited(r) {
+      const order = this.iniLayer() === 'site' ? ['version', 'global'] : this.iniLayer() === 'version' ? ['global'] : [];
+      for (const l of order) if (l in r.layers) return { value: r.layers[l], from: this.iniSourceLabel(l) };
+      return { value: r.base, from: 'php.ini' };
+    },
+    iniShow(r, v) {
+      if (r.kind === 'onoff') return ['1', 'on', 'true', 'yes'].includes(String(v).toLowerCase()) ? 'On' : 'Off';
+      return v === '' ? '(empty)' : v;
+    },
+    iniSet(r, v) { this.ini.edits = { ...this.ini.edits, [r.name]: v === '' ? null : v }; },
+    iniReset(r) { this.ini.edits = { ...this.ini.edits, [r.name]: null }; },
+    iniChanged(r) { return r.name in this.ini.edits && (this.ini.edits[r.name] ?? '') !== (r.layers[this.iniLayer()] ?? ''); },
+    iniDirty() { return (this.ini.view?.rows || []).some(r => this.iniChanged(r)) || Object.keys(this.ini.edits).some(k => !(this.ini.view?.rows || []).some(r => r.name === k)); },
+    iniChangeCount() { return Object.keys(this.ini.edits).filter(k => { const r = (this.ini.view?.rows || []).find(x => x.name === k); return !r || this.iniChanged(r); }).length; },
+    iniInvalid(r) {
+      const v = this.iniOwn(r);
+      if (v === '') return '';
+      if (r.kind === 'size' && !/^-?\d+\s*[KMG]?$/i.test(v)) return 'Use a number with K, M or G, like 512M (or -1 for no limit).';
+      if ((r.kind === 'seconds' || r.kind === 'number') && !/^-?\d+$/.test(v)) return 'Use a whole number.';
+      return '';
+    },
+    iniRows(group) {
+      const q = this.ini.q.trim().toLowerCase();
+      return (this.ini.view?.rows || []).filter(r => r.group === group && (!q || r.name.includes(q) || r.label.toLowerCase().includes(q)));
+    },
+    iniAdd() {
+      const name = this.ini.newName.trim().toLowerCase(), val = this.ini.newVal.trim();
+      if (!/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$/.test(name)) { this.toast('Setting names look like memory_limit or xdebug.mode', 'err'); return; }
+      if (!this.ini.view.rows.some(r => r.name === name)) {
+        this.ini.view.rows.push({ name, label: name, group: 'Other', help: '', kind: 'text', value: '', base: '', source: 'php.ini', layers: {} });
+      }
+      this.iniSet({ name }, val);
+      this.ini.newName = ''; this.ini.newVal = '';
+    },
+    async saveIni() {
+      const bad = (this.ini.view?.rows || []).find(r => this.iniInvalid(r));
+      if (bad) { this.toast(bad.label + ': ' + this.iniInvalid(bad), 'err'); return; }
+      this.ini.saving = true;
+      try {
+        const v = await api('POST', '/php/settings', { scope: this.ini.scope, values: this.ini.edits });
+        this.ini.view = v;
+        this.ini.edits = {};
+        this.toast(this.iniLayer() === 'site' ? 'Saved: the site uses its new PHP settings now' : 'Saved: PHP restarted with the new settings');
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+      finally { this.ini.saving = false; }
+    },
 
     // ---------- packages of an existing project ----------
     async loadSitePackages() {

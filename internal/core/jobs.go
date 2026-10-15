@@ -19,6 +19,7 @@ type Job struct {
 	Log      []string  `json:"log"`       // the last 300 lines
 	LogTotal int       `json:"log_total"` // lines ever written, for followers
 	Result   any       `json:"result,omitempty"`
+	Transfer *Transfer `json:"transfer,omitempty"` // set while something downloads
 	Started  time.Time `json:"started"`
 	Finished time.Time `json:"finished"`
 	mu       *sync.Mutex
@@ -28,6 +29,7 @@ func (j *Job) Set(progress float64, detail string) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	j.Progress, j.Detail = progress, detail
+	j.Transfer = nil // a new phase (unpacking, installing…)
 }
 
 // SetResult attaches structured output (shown by the UI when the job ends).
@@ -37,12 +39,63 @@ func (j *Job) SetResult(v any) {
 	j.Result = v
 }
 
+// Transfer is a download in progress, for a progress bar with sizes,
+// speed and time left. Step/Steps count the files of a multi-file download.
+type Transfer struct {
+	Done  int64   `json:"done"`
+	Total int64   `json:"total"` // 0 = unknown
+	Rate  float64 `json:"rate"`  // bytes per second, smoothed
+	Step  int     `json:"step,omitempty"`
+	Steps int     `json:"steps,omitempty"`
+	Label string  `json:"label,omitempty"` // what this step downloads
+	at    time.Time
+	from  int64
+}
+
+// Step starts file i of n (1-based) of a multi-file download.
+func (j *Job) Step(i, n int, label string) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.Transfer = &Transfer{Step: i, Steps: n, Label: label}
+}
+
 // Bytes reports download progress.
 func (j *Job) Bytes(done, total int64) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	t := j.Transfer
+	if t == nil || done < t.Done { // a new file without Step
+		t = &Transfer{}
+		if j.Transfer != nil {
+			t.Step, t.Steps, t.Label = j.Transfer.Step, j.Transfer.Steps, j.Transfer.Label
+		}
+		j.Transfer = t
+	}
+	now := time.Now()
+	if t.at.IsZero() {
+		t.at, t.from = now, done
+	} else if dt := now.Sub(t.at).Seconds(); dt >= 0.5 {
+		rate := float64(done-t.from) / dt
+		if t.Rate == 0 {
+			t.Rate = rate
+		} else {
+			t.Rate = 0.7*t.Rate + 0.3*rate
+		}
+		t.at, t.from = now, done
+	}
+	t.Done, t.Total = done, total
+	frac := -1.0
 	if total > 0 {
-		j.Set(float64(done)/float64(total), fmt.Sprintf("%.1f / %.1f MB", mb(done), mb(total)))
+		frac = float64(done) / float64(total)
+		if t.Steps > 1 {
+			frac = (float64(t.Step-1) + frac) / float64(t.Steps)
+		}
+	}
+	j.Progress = frac
+	if total > 0 {
+		j.Detail = fmt.Sprintf("%.1f of %.1f MB", mb(done), mb(total))
 	} else {
-		j.Set(-1, fmt.Sprintf("%.1f MB", mb(done)))
+		j.Detail = fmt.Sprintf("%.1f MB", mb(done))
 	}
 }
 
@@ -109,6 +162,10 @@ func (js *Jobs) Snapshot() []Job {
 		j.mu.Lock()
 		c := *j
 		c.Log = slices.Clone(j.Log)
+		if j.Transfer != nil {
+			t := *j.Transfer
+			c.Transfer = &t
+		}
 		j.mu.Unlock()
 		out = append(out, c)
 	}

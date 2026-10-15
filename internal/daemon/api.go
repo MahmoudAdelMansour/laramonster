@@ -119,7 +119,7 @@ func (rt *Runtime) Handler(stop func()) http.Handler {
 			return nil, errors.New(title + " is already running")
 		}
 		return rt.jobs.Run(title, func(j *core.Job) error {
-			rel, err := php.InstallVersion(v, j.Bytes)
+			rel, err := php.InstallVersionSteps(v, j.Bytes, j.Step)
 			if err == nil {
 				fmt.Fprintf(j, "installed PHP %s", rel.Full)
 			}
@@ -151,6 +151,28 @@ func (rt *Runtime) Handler(stop func()) http.Handler {
 			fmt.Fprintln(j, "Visual C++ runtime installed")
 			return nil
 		}, rt.reloadQuiet), nil
+	})
+	// php.ini settings: global, per version, per site.
+	handle("GET /api/php/settings", func(r *http.Request) (any, error) {
+		return core.ReadPHPSettings(r.URL.Query().Get("scope"))
+	})
+	handle("POST /api/php/settings", func(r *http.Request) (any, error) {
+		var b struct {
+			Scope  string             `json:"scope"`
+			Values map[string]*string `json:"values"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&b); err != nil {
+			return nil, err
+		}
+		if err := core.SetPHPSettings(b.Scope, b.Values); err != nil {
+			return nil, err
+		}
+		// PHP-FPM reads settings when it starts: reload restarts the pools
+		// whose settings changed.
+		if err := rt.Reload(); err != nil {
+			return nil, err
+		}
+		return core.ReadPHPSettings(b.Scope)
 	})
 	handle("POST /api/php/uninstall", rt.mutating(func(b body) error { return php.Uninstall(b.str("version")) }))
 	handle("POST /api/php/default", rt.mutating(func(b body) error { _, err := core.SetDefaultPHP(b.str("version")); return err }))
@@ -299,7 +321,11 @@ func TrustCA() error {
 	if err != nil {
 		return err
 	}
-	if os.Geteuid() != 0 && !trust.Trusted() {
+	if runtime.GOOS == "darwin" && !trust.Trusted() {
+		if err := trust.InstallMacUser(); err != nil {
+			return err
+		}
+	} else if os.Geteuid() != 0 && !trust.Trusted() {
 		script := fmt.Sprintf("LARAMONSTER_HOME='%s' '%s' trust --system-only", paths.Root(), exe)
 		if err := elevate.Run(script); err != nil {
 			return fmt.Errorf("installing into the system store: %w", err)

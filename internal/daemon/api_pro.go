@@ -75,6 +75,8 @@ func (rt *Runtime) registerPro(handle func(string, apiFunc), mux *http.ServeMux)
 		})
 	}
 
+	rt.registerPerf(pro)
+
 	// ── sites the Pro tools work on ──
 	pro("GET /api/pro/sites", func(*http.Request) (any, error) {
 		cfg, list, err := core.Sites()

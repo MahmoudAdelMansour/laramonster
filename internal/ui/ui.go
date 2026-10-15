@@ -28,6 +28,10 @@ func Handler() http.Handler {
 			r.URL.Path = "/"
 		} else if strings.HasPrefix(p, "fonts/") || strings.HasPrefix(p, "img/") || strings.HasPrefix(p, "vendor/") {
 			w.Header().Set("Cache-Control", "public, max-age=86400")
+		} else {
+			// app.js and app.css change with every release: a browser must
+			// not keep using an old copy after an update.
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		files.ServeHTTP(w, r)
 	})

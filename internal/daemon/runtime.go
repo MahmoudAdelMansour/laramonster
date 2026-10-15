@@ -130,6 +130,7 @@ func (r *Runtime) Reload() error {
 	if err := laravel.WriteTracking(tracked); err != nil {
 		warnings = append(warnings, "event tracker: "+err.Error())
 	}
+	r.fpm.Configure(core.PoolIni(cfg, list))
 	if err := r.fpm.Ensure(needed); err != nil {
 		warnings = append(warnings, err.Error())
 	}
@@ -155,7 +156,7 @@ func (r *Runtime) Reload() error {
 		proxies = append(proxies, server.Proxy{Name: server.MailName, Upstream: fmt.Sprintf("127.0.0.1:%d", d.WebPort(port))})
 	}
 
-	caddyfile := server.Caddyfile(cfg, list, r.fpm.Upstreams, dedupe(proxies))
+	caddyfile := server.Caddyfile(cfg, list, r.fpm.UpstreamsFor, dedupe(proxies))
 	// Kept for debugging: what Caddy is actually running.
 	_ = os.WriteFile(filepath.Join(paths.Run(), "Caddyfile"), []byte(caddyfile), 0o644)
 	if err := server.Apply(caddyfile); err != nil {

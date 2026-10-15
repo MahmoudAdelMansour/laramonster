@@ -47,6 +47,11 @@ if (! defined('LARAMONSTER_AGENT')) {
 
         private int $queries = 0;
 
+        /** @var array<string, array<string, mixed>> queries by SQL and caller, for Performance */
+        private array $sql = [];
+
+        public const MAX_SQL = 200;
+
         private function __construct(public string $base, public ?string $out, public bool $inMemory) {}
 
         public static function boot(string $base, ?string $out, bool $inMemory): void
@@ -126,6 +131,7 @@ if (! defined('LARAMONSTER_AGENT')) {
         {
             $this->start = microtime(true);
             $this->queries = 0;
+            $this->sql = [];
             $this->trace = [
                 'id' => bin2hex(random_bytes(8)),
                 'kind' => $kind,
@@ -149,6 +155,10 @@ if (! defined('LARAMONSTER_AGENT')) {
             }
             if ($name === 'Illuminate\\Database\\Events\\QueryExecuted') {
                 $this->queries++;
+                try {
+                    $this->query($payload[0] ?? null);
+                } catch (Throwable) {
+                }
                 $this->stack[] = null;
 
                 return null;
@@ -347,12 +357,15 @@ if (! defined('LARAMONSTER_AGENT')) {
             $this->trace['duration'] = round((microtime(true) - $this->start) * 1000, 2);
             $this->trace['queries'] = $this->queries;
             $this->trace['memory'] = memory_get_peak_usage(true);
+            $this->trace['sql'] = array_values($this->sql);
             $hasApp = false;
             foreach ($this->trace['events'] as $e) {
                 $hasApp = $hasApp || $e['app'];
             }
-            // Only traces that show something: an app event, a job, or a failure.
-            if ($this->inMemory || ! $this->out || (! $hasApp && ($this->trace['kind'] ?? '') !== 'job' && empty($this->trace['exception']))) {
+            // Every web request (Performance needs them all); commands only
+            // when they show something: an app event, a query or a failure.
+            $kind = $this->trace['kind'] ?? '';
+            if ($this->inMemory || ! $this->out || ($kind !== 'request' && $kind !== 'job' && ! $hasApp && $this->queries === 0 && empty($this->trace['exception']))) {
                 return;
             }
             $line = json_encode($this->trace, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -360,6 +373,63 @@ if (! defined('LARAMONSTER_AGENT')) {
                 @file_put_contents($this->out, $line."\n", FILE_APPEND | LOCK_EX);
             }
             $this->trace['events'] = [];
+        }
+
+        /**
+         * Counts a query by its SQL and the code that ran it: the first frame
+         * in the app, and the first package (not Laravel itself) on the way,
+         * which shows third-party code that runs queries. Repeats of one
+         * query from one line in one request are how N+1 problems look.
+         */
+        private function query(mixed $q): void
+        {
+            if (! is_object($q) || ! isset($q->sql)) {
+                return;
+            }
+            $sql = preg_replace('/\s+/', ' ', trim((string) $q->sql));
+            $sql = preg_replace('/\(\s*\?(\s*,\s*\?)+\s*\)/', '(?, …)', $sql);
+            $sql = mb_substr($sql, 0, 2000);
+            $src = null;
+            $pkg = null;
+            $vendor = DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR;
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 60) as $frame) {
+                $file = $frame['file'] ?? '';
+                if ($file === '' || dirname($file) === __DIR__) {
+                    continue;
+                }
+                $at = strpos($file, $vendor);
+                if ($at === false) {
+                    $src = self::relative($file).':'.($frame['line'] ?? 0);
+                    break;
+                }
+                if ($pkg === null) {
+                    $parts = explode(DIRECTORY_SEPARATOR, substr($file, $at + strlen($vendor)), 3);
+                    $name = ($parts[0] ?? '').'/'.($parts[1] ?? '');
+                    if (! in_array($parts[0] ?? '', ['laravel', 'illuminate', 'composer', 'symfony', 'nesbot', 'psr'], true)) {
+                        $pkg = $name;
+                    }
+                }
+            }
+            $key = $sql.'|'.$src;
+            $ms = is_numeric($q->time ?? null) ? (float) $q->time : 0.0;
+            if (isset($this->sql[$key])) {
+                $this->sql[$key]['n']++;
+                $this->sql[$key]['ms'] = round($this->sql[$key]['ms'] + $ms, 2);
+                $this->sql[$key]['max'] = max($this->sql[$key]['max'], $ms);
+
+                return;
+            }
+            if (count($this->sql) >= self::MAX_SQL) {
+                return;
+            }
+            $bindings = [];
+            foreach (array_slice((array) ($q->bindings ?? []), 0, 20) as $b) {
+                $bindings[] = is_scalar($b) || $b === null ? (is_string($b) ? mb_substr($b, 0, 100) : $b) : (string) json_encode(self::norm($b));
+            }
+            $this->sql[$key] = [
+                'sql' => $sql, 'n' => 1, 'ms' => round($ms, 2), 'max' => $ms, 'src' => $src, 'pkg' => $pkg,
+                'conn' => (string) ($q->connectionName ?? ''), 'bindings' => $bindings,
+            ];
         }
 
         /** The first frame outside vendor/ and this agent: who fired the event. */

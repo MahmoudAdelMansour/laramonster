@@ -18,7 +18,7 @@ func TestCaddyfileAdapts(t *testing.T) {
 		{Name: "my shop", Root: "/srv/my shop", PHP: "8.3", Enabled: true},
 		{Name: "static", Root: "/srv/static", Enabled: true},
 	}
-	ups := func(v string) []string { return []string{"unix//tmp/php" + v + ".sock"} }
+	ups := func(v, _ string) []string { return []string{"unix//tmp/php" + v + ".sock"} }
 	cf := Caddyfile(c, list, ups, []Proxy{{Name: DashboardName, Upstream: "unix//tmp/lm.sock"}})
 	for _, want := range []string{"tls internal", "redir https://blog.localhost:8443{uri} 308", `"unix//tmp/php8.4.sock"`, "laramonster.localhost:8080"} {
 		if !strings.Contains(cf, want) {
@@ -37,7 +37,7 @@ func TestCaddyfileOffAndProxySites(t *testing.T) {
 		{Name: "node", Enabled: true, Proxy: "http://127.0.0.1:3000"},
 		{Name: "apache", Enabled: true, Proxy: "https://shop.test"},
 	}
-	cf := Caddyfile(c, list, func(string) []string { return nil }, nil)
+	cf := Caddyfile(c, list, func(string, string) []string { return nil }, nil)
 	for _, want := range []string{"is switched off", `laramonster_count "node"`, `reverse_proxy "http://127.0.0.1:3000"`, `reverse_proxy "https://shop.test"`, "header_up Host {upstream_hostport}", "tls_insecure_skip_verify"} {
 		if !strings.Contains(cf, want) {
 			t.Errorf("missing %q in\n%s", want, cf)

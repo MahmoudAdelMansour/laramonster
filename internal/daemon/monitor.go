@@ -231,9 +231,14 @@ func (m *monitor) sample() {
 	// Pools and services first, so their process trees are not counted twice.
 	versions := m.rt.fpm.PIDs()
 	for _, v := range sortedKeys(versions) {
-		g := group("php-"+v, "php", "PHP "+v, v)
+		version, site, own := strings.Cut(v, "@")
+		label := "PHP " + version
+		if own {
+			label += " · " + site + " (own settings)"
+		}
+		g := group("php-"+v, "php", label, version)
 		for _, s := range active {
-			if s.PHP == v {
+			if own && s.Name == site || !own && s.PHP == v && !m.rt.fpm.OwnPool(s.Name) {
 				g.Sites++
 			}
 		}

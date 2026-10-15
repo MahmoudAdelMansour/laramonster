@@ -30,6 +30,10 @@ const (
 	Self  Kind = "self"  // replaced in place by this package
 	Store Kind = "store" // the Microsoft Store updates it
 	None  Kind = "none"  // a development build, or a layout we don't know
+	// Translocated: macOS runs the app from a read-only copy because it was
+	// opened where it was downloaded (App Translocation). It can update
+	// itself once it's moved to Applications.
+	Translocated Kind = "translocated"
 )
 
 // Releases is where every update is downloaded from; nothing else is run.
@@ -93,6 +97,8 @@ func KindOf(exe string) Kind {
 		return Store
 	case runtime.GOOS == "darwin" && appBundle(exe) == "":
 		return None // a bare binary, not LaraMonster.app
+	case runtime.GOOS == "darwin" && strings.Contains(exe, "/AppTranslocation/"):
+		return Translocated
 	}
 	return Self
 }
@@ -119,6 +125,8 @@ func Start(version, downloadURL string) error {
 		return errors.New("the Microsoft Store updates this copy of LaraMonster")
 	case None:
 		return errors.New("this copy of LaraMonster can't update itself: download the new version instead")
+	case Translocated:
+		return errors.New("macOS runs LaraMonster from a read-only copy because it was opened where it was downloaded: quit LaraMonster, drag it into your Applications folder and open it from there, then update")
 	}
 	if !strings.HasPrefix(downloadURL, Releases) {
 		return errors.New("updates are only installed from LaraMonster's releases page: download the new version instead")

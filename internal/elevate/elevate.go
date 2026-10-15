@@ -48,17 +48,43 @@ func RunTo(script string, out io.Writer) error {
 	if out != nil {
 		cmd.Stdout, cmd.Stderr = out, out
 	}
+	// osascript exits with 1 both when the dialog is cancelled and when the
+	// script fails: keep its message to tell them apart.
+	var osaErr strings.Builder
+	if cmd.Args[0] == "osascript" {
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, &osaErr)
+	}
 	err := cmd.Run()
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
 		switch {
 		case cmd.Args[0] == "pkexec" && (ee.ExitCode() == 126 || ee.ExitCode() == 127):
 			return errors.New("the password prompt was cancelled")
-		case cmd.Args[0] == "osascript" && ee.ExitCode() == 1:
-			return errors.New("the password prompt was cancelled")
+		case cmd.Args[0] == "osascript":
+			return osascriptError(osaErr.String(), err)
 		}
 	}
 	return err
+}
+
+// osascriptError explains a failed "do shell script … with administrator
+// privileges": -128 is the dialog's Cancel button, anything else is the
+// script's own error.
+func osascriptError(stderr string, err error) error {
+	msg := strings.TrimSpace(stderr)
+	if strings.Contains(msg, "(-128)") || strings.Contains(strings.ToLower(msg), "user canceled") {
+		return errors.New("the password prompt was cancelled")
+	}
+	// "execution error: <the script's output> (1)"
+	msg = strings.TrimPrefix(msg, "0:")
+	if i := strings.Index(msg, "execution error: "); i >= 0 {
+		msg = msg[i+len("execution error: "):]
+	}
+	msg = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(msg), "(1)"))
+	if msg == "" {
+		return err
+	}
+	return errors.New(msg)
 }
 
 func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }

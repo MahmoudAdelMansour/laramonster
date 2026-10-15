@@ -124,3 +124,40 @@ func envQuote(v string) string {
 	}
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
 }
+
+// SetEnvVars sets keys in a project's .env (uncommenting "# KEY=…" lines),
+// keeping a .env.backup of the previous file.
+func SetEnvVars(dir string, vars map[string]string) error {
+	p := EnvPath(dir)
+	if old, err := os.ReadFile(p); err == nil {
+		_ = os.WriteFile(p+".backup", old, 0o600)
+	}
+	return setEnv(p, vars)
+}
+
+// EnvValues parses a .env into key → value (quotes removed, comments skipped).
+func EnvValues(dir string) map[string]string {
+	out := map[string]string{}
+	b, err := os.ReadFile(EnvPath(dir))
+	if err != nil {
+		return out
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(strings.TrimPrefix(line, "export "), "=")
+		if !ok {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if len(v) >= 2 && (v[0] == '"' && v[len(v)-1] == '"' || v[0] == '\'' && v[len(v)-1] == '\'') {
+			v = v[1 : len(v)-1]
+		} else if i := strings.Index(v, " #"); i >= 0 {
+			v = strings.TrimSpace(v[:i])
+		}
+		out[strings.TrimSpace(k)] = v
+	}
+	return out
+}

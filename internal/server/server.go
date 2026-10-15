@@ -33,8 +33,8 @@ type Proxy struct {
 }
 
 // Caddyfile renders the Caddy config.
-// upstreams maps a PHP version to its FastCGI addresses.
-func Caddyfile(cfg *config.Config, list []sites.Site, upstreams func(version string) []string, proxies []Proxy) string {
+// upstreams gives a site's FastCGI addresses (by its PHP version and name).
+func Caddyfile(cfg *config.Config, list []sites.Site, upstreams func(version, site string) []string, proxies []Proxy) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `{
 	admin off
@@ -100,7 +100,7 @@ func Caddyfile(cfg *config.Config, list []sites.Site, upstreams func(version str
 		}
 		fmt.Fprintf(&b, "\troot * %s\n", quote(s.Root))
 		b.WriteString("\tencode zstd gzip\n")
-		if ups := upstreams(s.PHP); s.PHP != "" && len(ups) > 0 {
+		if ups := upstreams(s.PHP, s.Name); s.PHP != "" && len(ups) > 0 {
 			fmt.Fprintf(&b, "\tphp_fastcgi")
 			for _, u := range ups {
 				fmt.Fprintf(&b, " %s", quote(u))

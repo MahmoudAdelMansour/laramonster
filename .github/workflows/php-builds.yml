@@ -40,7 +40,8 @@ jobs:
     steps:
       - name: static-php-cli
         run: |
-          curl -fsSL -o spc "$SPC/${{ matrix.target.spc }}"
+          # static-php.dev sometimes answers 500 for a moment: retry.
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 -o spc "$SPC/${{ matrix.target.spc }}"
           chmod +x spc
           ./spc --version
           ./spc doctor --auto-fix

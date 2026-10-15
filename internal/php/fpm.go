@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,10 +26,9 @@ type worker struct {
 }
 
 type pool struct {
-	inst     Install
-	sendmail string
-	prepend  string
-	workers  []*worker
+	inst    Install
+	args    []string // the -d settings it was started with
+	workers []*worker
 }
 
 // Manager runs one PHP FastCGI pool per PHP version that a site needs.
@@ -40,6 +40,41 @@ type Manager struct {
 	// Prepend maps a version to an auto_prepend_file (LaraMonster's event
 	// agent) for pools that serve a site with event tracking on.
 	Prepend map[string]string
+	// Ini holds php.ini settings by pool key: a version ("8.4") or a site
+	// with settings of its own ("8.4@shop", see SiteKey).
+	Ini map[string]map[string]string
+	// Sites maps a site with settings of its own to its pool key. Such a
+	// site gets its own php-fpm, so its settings never reach other sites
+	// (PHP_VALUE over FastCGI leaks between sites: php bug #53611).
+	Sites map[string]string
+}
+
+// SiteKey is the pool key of a site that has php.ini settings of its own.
+func SiteKey(version, site string) string { return version + "@" + site }
+
+// IniArgs turns settings into php -d arguments, sorted by name.
+func IniArgs(settings map[string]string) []string {
+	names := make([]string, 0, len(settings))
+	for k := range settings {
+		names = append(names, k)
+	}
+	slices.Sort(names)
+	var out []string
+	for _, k := range names {
+		out = append(out, "-d", k+"="+settings[k])
+	}
+	return out
+}
+
+func (m *Manager) args(key, version string) []string {
+	var extra []string
+	if m.Sendmail != "" {
+		extra = []string{"-d", "sendmail_path=" + m.Sendmail}
+	}
+	if pre := m.Prepend[version]; pre != "" {
+		extra = append(extra, "-d", "auto_prepend_file="+pre)
+	}
+	return append(extra, IniArgs(m.Ini[key])...)
 }
 
 func NewManager() *Manager { return &Manager{pools: map[string]*pool{}} }
@@ -53,28 +88,71 @@ func (m *Manager) Ensure(installs []Install) error {
 	for _, i := range installs {
 		want[i.Version] = i
 	}
-	for v, p := range m.pools {
-		if i, ok := want[v]; !ok || i.FPM != p.inst.FPM || p.sendmail != m.Sendmail || p.prepend != m.Prepend[v] || p.exited() {
+	for _, k := range m.Sites {
+		version, _, _ := strings.Cut(k, "@")
+		if i, ok := want[version]; ok {
+			want[k] = i
+		}
+	}
+	for k, p := range m.pools {
+		version, _, _ := strings.Cut(k, "@")
+		if i, ok := want[k]; !ok || i.FPM != p.inst.FPM || !slices.Equal(p.args, m.args(k, version)) || p.exited() {
 			p.stop()
-			delete(m.pools, v)
+			delete(m.pools, k)
 		}
 	}
 	var errs []error
-	for v, i := range want {
-		if _, ok := m.pools[v]; ok {
+	for k, i := range want {
+		if _, ok := m.pools[k]; ok {
 			continue
 		}
-		p, err := startPool(i, m.Sendmail, m.Prepend[v])
+		version, site, _ := strings.Cut(k, "@")
+		args := m.args(k, version)
+		p, err := startPool(i, k, args)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("php %s: %w", v, err))
+			name := "php " + version
+			if site != "" {
+				name += " for " + site
+			}
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
 			continue
 		}
-		m.pools[v] = p
+		m.pools[k] = p
 	}
 	return errors.Join(errs...)
 }
 
-// Upstreams returns the FastCGI addresses Caddy should use for a version.
+// Configure sets the php.ini settings by pool key and the sites with
+// pools of their own; Ensure applies them.
+func (m *Manager) Configure(ini map[string]map[string]string, sites map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Ini, m.Sites = ini, sites
+}
+
+// OwnPool reports whether a site runs in a pool of its own.
+func (m *Manager) OwnPool(site string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.Sites[site]
+	return ok
+}
+
+// UpstreamsFor returns the FastCGI addresses for a site: its own pool when
+// it has settings of its own, else its version's.
+func (m *Manager) UpstreamsFor(version, site string) []string {
+	m.mu.Lock()
+	k, own := m.Sites[site]
+	m.mu.Unlock()
+	if own {
+		if ups := m.Upstreams(k); len(ups) > 0 {
+			return ups
+		}
+	}
+	return m.Upstreams(version)
+}
+
+// Upstreams returns the FastCGI addresses Caddy should use for a pool key.
 func (m *Manager) Upstreams(version string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -139,32 +217,26 @@ func (m *Manager) StopAll() {
 	}
 }
 
-func key(version string) string { return "php" + strings.ReplaceAll(version, ".", "") }
+// key names a pool's files: php84, or php84@shop for a site's own pool.
+func key(k string) string { return "php" + strings.ReplaceAll(k, ".", "") }
 
 func LogFile(version string) string {
 	return filepath.Join(paths.Logs(), key(version)+"-fpm.log")
 }
 
-func startPool(i Install, sendmail, prepend string) (*pool, error) {
-	var extra []string
-	if sendmail != "" {
-		extra = []string{"-d", "sendmail_path=" + sendmail}
-	}
-	if prepend != "" {
-		extra = append(extra, "-d", "auto_prepend_file="+prepend)
-	}
+func startPool(i Install, k string, extra []string) (*pool, error) {
 	if runtime.GOOS == "windows" {
-		p, err := startCGI(i, extra)
+		p, err := startCGI(i, k, extra)
 		if p != nil {
-			p.sendmail, p.prepend = sendmail, prepend
+			p.args = extra
 		}
 		return p, err
 	}
-	w, err := startFPM(i, extra)
+	w, err := startFPM(i, k, extra)
 	if err != nil {
 		return nil, err
 	}
-	return &pool{inst: i, sendmail: sendmail, prepend: prepend, workers: []*worker{w}}, nil
+	return &pool{inst: i, args: extra, workers: []*worker{w}}, nil
 }
 
 const fpmConf = `[global]
@@ -185,10 +257,10 @@ clear_env = no
 pm.status_path = ` + StatusPath + `
 `
 
-func startFPM(i Install, extra []string) (*worker, error) {
-	k := key(i.Version)
+func startFPM(i Install, poolKey string, extra []string) (*worker, error) {
+	k := key(poolKey)
 	sock := filepath.Join(paths.Run(), k+".sock")
-	logFile := LogFile(i.Version)
+	logFile := LogFile(poolKey)
 	conf := filepath.Join(paths.Run(), k+"-fpm.conf")
 	if err := os.WriteFile(conf, fmt.Appendf(nil, fpmConf, logFile, sock), 0o644); err != nil {
 		return nil, err
@@ -215,10 +287,14 @@ func startFPM(i Install, extra []string) (*worker, error) {
 // ports and let Caddy balance across them.
 const cgiWorkers = 4
 
-func startCGI(i Install, extra []string) (*pool, error) {
+func startCGI(i Install, poolKey string, extra []string) (*pool, error) {
 	p := &pool{inst: i}
-	logFile := LogFile(i.Version)
-	for n := 0; n < cgiWorkers; n++ {
+	logFile := LogFile(poolKey)
+	workers := cgiWorkers
+	if strings.Contains(poolKey, "@") {
+		workers = 2 // one site only
+	}
+	for n := 0; n < workers; n++ {
 		port, err := freePort()
 		if err != nil {
 			p.stop()

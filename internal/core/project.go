@@ -279,7 +279,7 @@ func phpInstall(version string) (php.Install, error) {
 }
 
 func runPHP(inst php.Install, dir string, out io.Writer, args ...string) error {
-	cmd := exec.Command(inst.CLI, args...)
+	cmd := exec.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.Env = append(os.Environ(), inst.Env()...)

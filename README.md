@@ -7,7 +7,8 @@ One binary gives you:
 
 - **Sites**: park a folder and every subfolder becomes `<folder>.localhost`, or link single projects. Laravel `public/` is detected.
 - **Embedded web server**: Caddy runs inside LaraMonster and hot-reloads on every change. No nginx to install.
-- **Multiple PHP versions**: one-click installs of static PHP builds (static-php.dev on Linux/macOS, windows.php.net on Windows). There's a default version plus per-site pinning, and system PHP installs are detected too.
+- **Multiple PHP versions**: one-click installs of static PHP builds (LaraMonster's own static-php-cli builds with intl, sodium and mbregex on Linux/macOS, windows.php.net on Windows). There's a default version plus per-site pinning, and system PHP installs are detected too.
+- **PHP settings** (php.ini values without editing files): for every version, per version, and per site. Each value shows what PHP uses now and which layer set it. A site with its own settings runs in its own PHP-FPM, so they never leak to other sites; `php`, `composer` and `artisan` in the project use them too.
 - **`php` / `composer` shims** that follow the PHP version of the site you're in.
 - **HTTPS**: a local certificate authority, per-site `secure`, and HTTP→HTTPS redirects.
 - **`.test` domains**: a built-in DNS server, wired up via `/etc/resolver` (macOS) or systemd-resolved (Linux), or a managed hosts-file block as the fallback.
@@ -65,10 +66,12 @@ When you open LaraMonster it checks for a new version, then downloads and instal
 
 ## LaraMonster Pro
 
-Two extra tools for Laravel sites, unlocked by a license from [monstersgate.com/laramonster](https://monstersgate.com/laramonster) (sign in under **Account** with your monstersgate.com email, or a license key):
+Extra tools for Laravel sites, unlocked by a license from [monstersgate.com/laramonster](https://monstersgate.com/laramonster) (sign in under **Account** with your monstersgate.com email, or a license key):
 
-- **Events**: turn on recording for a site and every request, command and queued job is traced: the events it fired (nested, timed), their payloads, which listeners ran and what they returned, and errors. Dispatch any event from a form built from its constructor (or raw PHP), and export an event guide, job guide or trace as a PDF for your team.
+- **Activity**: turn on recording for a site and every request, command and queued job is traced: the events it fired (nested, timed), their payloads, which listeners ran and what they returned, its queries, and errors. Export a trace as a PDF.
+- **Events**: your app's event classes and their listeners. Dispatch any event from a form built from its constructor (or raw PHP), see where it fired in Activity, and export an event guide as a PDF for your team.
 - **Jobs & Queues**: each job explained in plain words (what `handle()` does, its schedule, where it's dispatched, retries and timeouts), run it now or queue it (form, raw PHP, or any artisan command), see queue sizes and failed jobs (retry, forget), and start workers that LaraMonster supervises.
+- **Performance**: a scored checkup (config/route/view/event caches, Composer autoloader, OPcache, Xdebug, Debugbar and Telescope, queue and cache drivers) with one-click fixes; from recorded requests, the slowest pages, N+1 queries with the line that runs them and the relation to eager load, slow queries with EXPLAIN and timing, and the third-party packages that cost the most time; and a load test that sends N users at a page and reports requests per second, p50/p95/p99, errors, PHP CPU and memory, and whether PHP workers ran out.
 
 Recording uses a small PHP agent loaded with `auto_prepend_file` only by pools that serve a tracked site; it never changes what the app does. One computer at a time: signing in elsewhere signs this one out (the owner gets an email). Offline, Pro keeps working for 3 days after the last license check. `LARAMONSTER_ACCOUNT_URL` points the app at another server for testing.
 

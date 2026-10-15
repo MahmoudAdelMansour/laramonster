@@ -34,6 +34,19 @@ type Trace struct {
 	Truncated  bool            `json:"truncated,omitempty"`
 	Exception  json.RawMessage `json:"exception,omitempty"`
 	Events     []TraceEvent    `json:"events"`
+	SQL        []TraceQuery    `json:"sql,omitempty"`
+}
+
+// TraceQuery is one SQL statement as a trace saw it, counted per caller.
+type TraceQuery struct {
+	SQL      string  `json:"sql"`
+	N        int     `json:"n"`             // times it ran in this trace
+	MS       float64 `json:"ms"`            // total time
+	Max      float64 `json:"max"`           // slowest run
+	Src      string  `json:"src,omitempty"` // first app frame, file:line
+	Pkg      string  `json:"pkg,omitempty"` // first package (not Laravel) on the way
+	Conn     string  `json:"conn,omitempty"`
+	Bindings []any   `json:"bindings,omitempty"`
 }
 
 type TraceEvent struct {

@@ -45,6 +45,8 @@
     <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3.2M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></symbol>
     <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 18.5a9 9 0 1 1 15 0"/><path d="M12 13l4-5"/><circle cx="12" cy="13" r="1.5"/></symbol>
+    <symbol id="i-timeline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><path d="M5 8v8M10 6h10M10 12h7M10 18h10"/></symbol>
     <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
@@ -141,10 +143,10 @@
     </div>
 
     <!-- LaraMonster PHP builds from before intl was included -->
-    <template x-for="p in (s.php || []).filter(p => p.managed && p.exts?.length && !p.exts.includes('intl'))" :key="'intl' + p.version">
-      <div class="alert" style="margin-bottom:16px;align-items:center" x-show="page === 'dashboard' || page === 'php'">
+    <template x-for="p in (s.php || []).filter(p => p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex')))" :key="'intl' + p.version">
+      <div class="alert" style="margin-bottom:16px;align-items:center" x-show="page === 'dashboard'">
         <svg class="i"><use href="#i-alert"/></svg>
-        <div class="grow"><b x-text="'PHP ' + p.full + ' needs an update'"></b> — this build has no <code>intl</code> extension, so Filament and other packages can't install. The new build has it; your sites and settings stay as they are.</div>
+        <div class="grow"><b x-text="'PHP ' + p.full + ' needs an update'"></b> — this build lacks <code>intl</code> or <code>mb_split</code>, which Filament, other packages and parts of Laravel need. The new build has both; your sites and settings stay as they are.</div>
         <button class="btn btn-sm" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)" x-text="jobBusy('Install PHP ' + p.version) ? 'Updating…' : 'Update PHP ' + p.version"></button>
       </div>
     </template>
@@ -416,7 +418,10 @@
     <section x-show="page === 'php'">
       <div class="page-head">
         <div><h1>PHP</h1><p>Install several PHP versions side by side and pick one per site.</p></div>
-        <div class="actions"><button class="btn btn-ghost" @click="loadAvailable(true)" :disabled="availableLoading"><svg class="i" :class="{ spin: availableLoading }"><use href="#i-refresh"/></svg> Refresh list</button></div>
+        <div class="actions">
+          <button class="btn btn-ghost" @click="openIni('global')" :disabled="!s.php.length"><svg class="i"><use href="#i-cog"/></svg> Settings for every version</button>
+          <button class="btn btn-ghost" @click="loadAvailable(true)" :disabled="availableLoading"><svg class="i" :class="{ spin: availableLoading }"><use href="#i-refresh"/></svg> Refresh list</button>
+        </div>
       </div>
 
       <template x-for="b in s.php_broken || []" :key="b.version">
@@ -449,10 +454,11 @@
               </div>
               <div class="small muted mono ellipsis" x-text="p.fpm"></div>
               <div class="small muted" x-text="sitesOn(p.version) + ' site(s)'"></div>
-              <div class="small" style="color:var(--warn-text);font-weight:600" x-show="p.managed && p.exts?.length && !p.exts.includes('intl')">This build has no intl extension (Filament and other packages need it). Update it to a build that has intl.</div>
+              <div class="small" style="color:var(--warn-text);font-weight:600" x-show="p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex'))">This build lacks intl or mb_split (Filament, other packages and parts of Laravel need them). Update it to the new build.</div>
             </div>
             <div class="actions">
-              <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !p.exts.includes('intl')" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
+              <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex'))" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
+              <button class="btn btn-sm btn-ghost" @click="openIni(p.version)"><svg class="i"><use href="#i-cog"/></svg> Settings</button>
               <button class="btn btn-sm btn-ghost" x-show="p.version !== s.default_php" @click="setDefault(p.version)">Make default</button>
               <button class="btn btn-sm btn-danger" x-show="p.managed" @click="uninstallPHP(p.version)">Uninstall</button>
             </div>
@@ -462,7 +468,7 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Available downloads</h2><span class="sub">Prebuilt from static-php.dev (Linux, macOS) or windows.php.net</span></div>
+        <div class="card-head"><h2>Available downloads</h2><span class="sub">Built by LaraMonster (Linux, macOS) or from windows.php.net (Windows)</span></div>
         <div class="grid grid-4 card-pad" x-show="availableLoading && !available.length">
           <template x-for="i in 4"><div class="card" style="padding:16px;box-shadow:none" ><div class="skeleton" style="width:56px;height:56px;border-radius:14px"></div><div class="skeleton" style="margin-top:12px;width:70%"></div></div></template>
         </div>
@@ -472,11 +478,13 @@
             <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;box-shadow:none">
               <div class="php-chip" x-text="r.version"></div>
               <div><b style="color:var(--title)" x-text="'PHP ' + r.full"></b><div class="small muted" x-text="r.installed ? 'Installed' : 'Not installed'"></div></div>
-              <button class="btn btn-sm" x-show="!r.installed" :disabled="jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)">
-                <svg class="i" :class="{ spin: jobBusy('Install PHP ' + r.version) }"><use :href="jobBusy('Install PHP ' + r.version) ? '#i-loader' : '#i-download'"/></svg>
-                <span x-text="jobBusy('Install PHP ' + r.version) ? 'Installing…' : 'Install'"></span>
-              </button>
-              <button class="btn btn-sm btn-ghost" x-show="r.installed" :disabled="jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)">Reinstall</button>
+              <div class="inline-prog" x-show="jobFor('Install PHP ' + r.version)" role="status">
+                <div class="inline-prog-head"><span class="ellipsis" x-text="jobStep(jobFor('Install PHP ' + r.version)) || 'Installing'"></span><b x-text="jobPct(jobFor('Install PHP ' + r.version))"></b></div>
+                <div class="bar" :class="{ indet: (jobFor('Install PHP ' + r.version)?.progress ?? -1) < 0 }"><i :style="'width:' + Math.max(4, (jobFor('Install PHP ' + r.version)?.progress || 0) * 100) + '%'"></i></div>
+                <div class="inline-prog-meta"><span class="ellipsis" x-text="jobSizes(jobFor('Install PHP ' + r.version))"></span><span x-text="jobSpeed(jobFor('Install PHP ' + r.version))"></span></div>
+              </div>
+              <button class="btn btn-sm" x-show="!r.installed && !jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)"><svg class="i"><use href="#i-download"/></svg> Install</button>
+              <button class="btn btn-sm btn-ghost" x-show="r.installed && !jobBusy('Install PHP ' + r.version)" @click="installPHP(r.version)">Reinstall</button>
             </div>
           </template>
         </div>
@@ -561,7 +569,7 @@
         <span class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></span>
         <div class="grow"><b>LaraMonster Pro</b>
           <div class="small muted" x-text="s?.pro ? 'Active on this computer: Events and Jobs & Queues are unlocked.' : 'Event Tracker and Jobs & Queues for your Laravel apps. Plans, licenses and pricing on monstersgate.com.'"></div></div>
-        <button class="btn btn-ghost btn-sm" x-show="s?.pro" @click="location.hash = 'events'">Open Events</button>
+        <button class="btn btn-ghost btn-sm" x-show="s?.pro" @click="location.hash = 'activity'">Open Activity</button>
         <button class="btn btn-sm" :class="s?.pro ? 'btn-ghost' : ''" @click="openURL(acct?.buy_url)"><svg class="i"><use href="#i-external"/></svg> LaraMonster Pro</button>
       </div>
       <div class="grid grid-3" x-show="toolsLoading && !tools.length">
@@ -583,15 +591,19 @@
                   <div class="small muted mono ellipsis" x-show="t.installed" :title="t.path" x-text="t.path"></div>
                   <div class="alert error small" x-show="toolError(t)" style="padding:8px 12px"><div x-text="toolError(t)"></div></div>
                 </div>
-                <div class="service-foot">
+                <div class="service-foot" x-show="jobFor('Install ' + t.name)">
+                  <div class="inline-prog" role="status">
+                    <div class="inline-prog-head"><span class="ellipsis" x-text="jobStep(jobFor('Install ' + t.name)) || 'Installing ' + t.name"></span><b x-text="jobPct(jobFor('Install ' + t.name))"></b></div>
+                    <div class="bar" :class="{ indet: (jobFor('Install ' + t.name)?.progress ?? -1) < 0 }"><i :style="'width:' + Math.max(4, (jobFor('Install ' + t.name)?.progress || 0) * 100) + '%'"></i></div>
+                    <div class="inline-prog-meta"><span class="ellipsis" x-text="jobSizes(jobFor('Install ' + t.name))"></span><span x-text="jobSpeed(jobFor('Install ' + t.name))"></span></div>
+                  </div>
+                </div>
+                <div class="service-foot" x-show="!jobFor('Install ' + t.name)">
                   <template x-if="t.page"><a class="btn btn-sm btn-ghost" :href="'#' + t.page">Manage versions</a></template>
                   <template x-if="!t.page && !t.installed && t.method">
-                    <button class="btn btn-sm" :disabled="jobBusy('Install ' + t.name)" @click="installTool(t)">
-                      <svg class="i" :class="{ spin: jobBusy('Install ' + t.name) }"><use :href="jobBusy('Install ' + t.name) ? '#i-loader' : '#i-download'"/></svg>
-                      <span x-text="jobBusy('Install ' + t.name) ? 'Installing…' : (toolError(t) ? 'Retry' : 'Install')"></span>
-                    </button>
+                    <button class="btn btn-sm" @click="installTool(t)"><svg class="i"><use href="#i-download"/></svg> <span x-text="toolError(t) ? 'Retry' : 'Install'"></span></button>
                   </template>
-                  <span class="small muted" x-show="!t.page && !t.installed" x-text="methodText(t)"></span>
+                  <span class="small muted foot-note" x-show="!t.page && !t.installed" x-text="methodText(t)"></span>
                   <template x-if="t.installed && t.service"><a class="btn btn-sm btn-ghost" :href="t.service === 'mailpit' ? '#mail' : '#services'">Open</a></template>
                   <template x-if="t.installed && !t.service && !t.page"><span class="small" style="color:var(--success-text)"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-check"/></svg> Ready to use</span></template>
                 </div>
@@ -694,13 +706,13 @@
     </section>
 
     <!-- ============ PRO LOCK (shared by Events and Jobs) ============ -->
-    <template x-if="(page === 'events' || page === 'jobs') && (proLocked || (s && !s.pro))">
+    <template x-if="['activity', 'events', 'jobs', 'performance'].includes(page) && (proLocked || (s && !s.pro))">
       <section>
-        <div class="page-head"><div><h1 x-text="page === 'events' ? 'Events' : 'Jobs & Queues'"></h1><p>Part of LaraMonster Pro.</p></div></div>
+        <div class="page-head"><div><h1 x-text="{ activity: 'Activity', events: 'Events', jobs: 'Jobs & Queues', performance: 'Performance' }[page]"></h1><p>Part of LaraMonster Pro.</p></div></div>
         <div class="card"><div class="empty" style="padding:56px 24px">
-          <div class="tile-icon tone-blue"><svg class="i"><use :href="page === 'events' ? '#i-zap' : '#i-box'"/></svg></div>
-          <h3 x-text="acct?.state === 'replaced' ? 'Signed in on another device' : acct?.state === 'expired' ? 'Your license has expired' : acct?.state === 'offline' ? 'Connect to check your license' : (page === 'events' ? 'See every event your app fires' : 'Know what every job does, and when')"></h3>
-          <p x-text="['replaced', 'expired', 'offline', 'revoked', 'admin'].includes(acct?.state) ? acct.message : (page === 'events' ? 'The Event Tracker records events with their data, listeners and what they caused; dispatch them yourself and export guides as PDF.' : 'Jobs & Queues explains each job in plain words, shows its schedule, runs it, and manages queues and workers.')"></p>
+          <div class="tile-icon tone-blue"><svg class="i"><use :href="{ activity: '#i-timeline', events: '#i-zap', jobs: '#i-box', performance: '#i-gauge' }[page]"/></svg></div>
+          <h3 x-text="acct?.state === 'replaced' ? 'Signed in on another device' : acct?.state === 'expired' ? 'Your license has expired' : acct?.state === 'offline' ? 'Connect to check your license' : ({ activity: 'See every request, command and job, with its events', events: 'Every event your app has, and who listens', jobs: 'Know what every job does, and when', performance: 'Find what makes your app slow, and fix it' }[page])"></h3>
+          <p x-text="['replaced', 'expired', 'offline', 'revoked', 'admin'].includes(acct?.state) ? acct.message : ({ activity: 'Activity records what each request, command and queued job did: the events it fired, their data, listeners and timing.', events: 'Events lists your app’s event classes with their listeners; dispatch them with your own data and export guides as PDF.', jobs: 'Jobs & Queues explains each job in plain words, shows its schedule, runs it, and manages queues and workers.', performance: 'Performance checks your caches, PHP and drivers with one-click fixes, finds N+1 and slow queries and costly packages, and load-tests pages with as many users as you choose.' }[page])"></p>
           <div class="actions" style="justify-content:center">
             <button class="btn" @click="location.hash = 'account'" x-text="acct?.state === 'expired' ? 'Account' : 'Sign in'"></button>
             <button class="btn btn-ghost" @click="openURL(acct?.buy_url)" x-text="acct?.state === 'expired' ? 'Renew' : 'Get a license'"></button>
@@ -710,17 +722,14 @@
     </template>
 
     <!-- ============ EVENTS (Pro) ============ -->
-    <section x-show="page === 'events' && s?.pro && !proLocked">
+    <section x-show="['activity', 'events'].includes(page) && s?.pro && !proLocked">
       <div class="page-head">
-        <div><h1>Events</h1><p>What your Laravel app fires, with its data, listeners and what it caused.</p></div>
+        <div x-show="page === 'activity'"><h1>Activity</h1><p>Every request, command and queued job of a site, with the events it fired, their data, listeners and timing.</p></div>
+        <div x-show="page === 'events'"><h1>Events</h1><p>Your app's event classes and who listens to them. Dispatch one with your own data, or export a guide.</p></div>
         <div class="actions" x-show="proSites?.length">
           <label class="row small muted" style="gap:8px">Site
             <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
           </label>
-          <div class="tabs" role="tablist">
-            <button role="tab" :class="{ on: ev.tab === 'live' }" @click="ev.tab = 'live'; loadTraces()">Recorded</button>
-            <button role="tab" :class="{ on: ev.tab === 'catalog' }" @click="ev.tab = 'catalog'; loadCatalog()">Catalog</button>
-          </div>
         </div>
       </div>
 
@@ -757,7 +766,7 @@
                 <template x-if="ev.q"><div><h3>Nothing matches</h3><button class="btn btn-ghost btn-sm" @click="ev.q = ''">Clear filter</button></div></template>
                 <template x-if="!ev.q"><div><div class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></div>
                   <h3 x-text="ev.tracking ? 'Waiting for events' : 'Nothing recorded yet'"></h3>
-                  <p x-text="ev.tracking ? 'Use ' + proSite + ' in your browser; requests that fire an event appear here within a few seconds.' : 'Turn recording on above, or dispatch an event from the Catalog tab.'"></p></div></template>
+                  <p x-text="ev.tracking ? 'Use ' + proSite + ' in your browser; requests that fire an event appear here within a few seconds.' : 'Turn recording on above, or dispatch an event from the Events page.'"></p></div></template>
               </div>
             </div>
           </div>
@@ -796,8 +805,9 @@
                     <div class="ev-detail">
                       <div class="row" style="justify-content:space-between;flex-wrap:wrap">
                         <h3 class="mono" style="font-size:14px" x-text="traceEvent().name"></h3>
-                        <span class="small muted mono" x-text="traceEvent().source || ''"></span>
+                        <button class="btn btn-ghost btn-sm" x-show="traceEvent().app" @click="openEventClass(traceEvent().name)"><svg class="i"><use href="#i-zap"/></svg> Open in Events</button>
                       </div>
+                      <div class="small muted mono" x-show="traceEvent().source" x-text="traceEvent().source"></div>
                       <div class="alert error small" x-show="traceEvent().exception"><svg class="i"><use href="#i-alert"/></svg><div x-text="errLine(traceEvent().exception)"></div></div>
                       <template x-if="traceEvent().ran?.length || traceEvent().listeners?.length">
                         <div>
@@ -849,7 +859,10 @@
             <div class="pro-detail-in scroll-pad">
               <div class="row" style="justify-content:space-between;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm back-btn" @click="ev.cls = null"><svg class="i"><use href="#i-back"/></svg> Events</button>
-                <button class="btn btn-ghost btn-sm" @click="exportGuide('event', { class: ev.cls, trace: ev.result?.trace?.id || '' }, ev)"><svg class="i"><use href="#i-download"/></svg> Export guide (PDF)</button>
+                <div class="actions">
+                  <button class="btn btn-ghost btn-sm" @click="eventActivity(ev.cls)"><svg class="i"><use href="#i-timeline"/></svg> See it in Activity</button>
+                  <button class="btn btn-ghost btn-sm" @click="exportGuide('event', { class: ev.cls, trace: ev.result?.trace?.id || '' }, ev)"><svg class="i"><use href="#i-download"/></svg> Export guide (PDF)</button>
+                </div>
               </div>
               <h2 style="font-size:20px;margin-top:6px" x-text="shortClass(catEvent().class)"></h2>
               <p class="muted" x-text="catEvent().doc || catEvent().class"></p>
@@ -901,6 +914,227 @@
     </section>
 
     <!-- ============ JOBS & QUEUES (Pro) ============ -->
+    <!-- ============ PERFORMANCE (Pro) ============ -->
+    <section x-show="page === 'performance' && s?.pro && !proLocked">
+      <div class="page-head">
+        <div><h1>Performance</h1><p>What makes this site slow, and how to fix it: settings, queries, packages, and how it holds up with many users.</p></div>
+        <div class="actions" x-show="proSites?.length">
+          <label class="row small muted" style="gap:8px">Site
+            <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
+          </label>
+        </div>
+      </div>
+      <nav class="page-tabs" role="tablist" aria-label="Performance" x-show="proSites?.length">
+        <button role="tab" :aria-selected="pf.tab === 'checkup'" :class="{ on: pf.tab === 'checkup' }" @click="pfTab('checkup')"><svg class="i"><use href="#i-check"/></svg> Checkup <span class="count" x-show="pf.checkup" x-text="pf.checkup?.score + '/100'"></span></button>
+        <button role="tab" :aria-selected="pf.tab === 'requests'" :class="{ on: pf.tab === 'requests' }" @click="pfTab('requests')"><svg class="i"><use href="#i-db"/></svg> Requests &amp; queries <span class="count hot" x-show="pf.report?.n_plus_one?.length" x-text="pf.report?.n_plus_one?.length + ' N+1'"></span></button>
+        <button role="tab" :aria-selected="pf.tab === 'load'" :class="{ on: pf.tab === 'load' }" @click="pfTab('load')"><svg class="i"><use href="#i-activity"/></svg> Load test</button>
+      </nav>
+      <div class="alert error" style="margin-bottom:16px" x-show="proError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="proError"></div><button class="btn btn-sm btn-ghost" @click="openPro('performance')">Try again</button></div>
+      <div class="card" x-show="proSites && !proSites.length"><div class="empty"><h3>No Laravel sites yet</h3><p>Performance works on Laravel projects LaraMonster serves.</p><button class="btn" @click="location.hash = 'sites'">Sites</button></div></div>
+
+      <!-- Checkup -->
+      <div x-show="proSite && pf.tab === 'checkup'">
+        <template x-if="pf.cLoading && !pf.checkup"><div class="stack"><div class="skeleton" style="height:96px"></div><div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:64px"></div></div></template>
+        <div class="alert error" x-show="pf.cError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="pf.cError"></div><button class="btn btn-sm btn-ghost" @click="loadCheckup()">Try again</button></div>
+        <template x-if="pf.checkup">
+          <div class="stack">
+            <div class="card perf-score" :class="scoreTone(pf.checkup.score)">
+              <div class="perf-score-num"><b x-text="pf.checkup.score"></b><span>/100</span></div>
+              <div class="grow">
+                <b x-text="pf.checkup.score >= 85 ? 'Set up for speed' : pf.checkup.score >= 60 ? 'A few things slow this site down' : 'Several things slow this site down'"></b>
+                <div class="small muted">Checks what LaraMonster can see in the project and its PHP. Fixes apply to this computer only.</div>
+                <div class="chips" style="margin-top:8px"><template x-for="f in pf.checkup.facts" :key="f"><span class="badge" x-text="f"></span></template></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" @click="loadCheckup()" :disabled="pf.cLoading"><svg class="i" :class="{ spin: pf.cLoading }"><use href="#i-refresh"/></svg> Check again</button>
+            </div>
+            <template x-for="g in checkupGroups()" :key="g">
+              <div>
+                <div class="section-title" x-text="g"></div>
+                <div class="check-list">
+                  <template x-for="c in pf.checkup.checks.filter(x => x.group === g)" :key="c.id">
+                    <div class="check-row" :class="c.status">
+                      <span class="check-icon"><svg class="i"><use :href="'#i-' + checkIcon(c)"/></svg></span>
+                      <div class="grow" style="min-width:0">
+                        <div class="row" style="gap:8px;flex-wrap:wrap"><b class="check-title" x-text="c.title"></b><span class="check-word" x-text="checkWord(c)"></span></div>
+                        <div class="small" x-text="c.detail"></div>
+                        <div class="chips" style="margin-top:6px" x-show="c.items?.length"><template x-for="it in c.items || []" :key="it"><span class="badge" x-text="it"></span></template></div>
+                        <details class="check-why"><summary>Why it matters</summary><p x-text="c.why"></p></details>
+                        <div class="small muted" x-show="(c.fix || c.undo)?.note" x-text="(c.fix || c.undo)?.note"></div>
+                        <div class="small err-text" x-show="pfFixState((c.fix || c.undo)?.action) === 'failed'">That didn't work: open the job in the corner for the details.</div>
+                      </div>
+                      <div class="check-actions">
+                        <template x-for="f in [c.fix, c.undo].filter(Boolean)" :key="f.action">
+                          <button class="btn btn-sm" :class="{ 'btn-ghost': f === c.undo }" :disabled="pfFixState(f.action) === 'running'" @click="runPerfFix(f)">
+                            <svg class="i spin" x-show="pfFixState(f.action) === 'running'"><use href="#i-loader"/></svg><span x-text="f.label"></span></button>
+                        </template>
+                        <button class="btn btn-sm btn-ghost" x-show="['opcache', 'xdebug'].includes(c.id) && c.status !== 'good'" @click="openSitePanel(s.sites.find(x => x.name === proSite), 'php')">PHP settings</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Requests & queries -->
+      <div x-show="proSite && pf.tab === 'requests'">
+        <div class="track-bar card" :class="{ on: pf.tracking }">
+          <label class="switch"><input type="checkbox" :checked="pf.tracking" @change="setPerfTracking($event.target.checked)" aria-label="Record requests"><span></span></label>
+          <div class="grow"><b x-text="pf.tracking ? 'Recording ' + proSite : 'Recording is off for ' + proSite"></b>
+            <div class="small muted" x-text="pf.tracking ? 'Use the site in your browser: every request is measured with its queries. The same recording feeds Activity.' : 'Turn it on, then use the site: LaraMonster measures each request, its queries and which code ran them.'"></div></div>
+          <button class="btn btn-ghost btn-sm" @click="loadPerfRequests()" :disabled="pf.rLoading"><svg class="i" :class="{ spin: pf.rLoading }"><use href="#i-refresh"/></svg> Refresh</button>
+        </div>
+        <div class="alert error" x-show="pf.rError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="pf.rError"></div></div>
+        <template x-if="pf.rLoading && !pf.report"><div class="stack"><div class="skeleton" style="height:80px"></div><div class="skeleton" style="height:160px"></div></div></template>
+        <div class="card" x-show="pf.report && !pf.report.requests"><div class="empty">
+          <div class="tile-icon tone-blue"><svg class="i"><use href="#i-db"/></svg></div>
+          <h3>No requests measured yet</h3>
+          <p x-text="pf.tracking ? 'Open ' + (proSiteInfo()?.url || 'the site') + ' and click through the pages you care about, then refresh.' : 'Turn recording on above, then use the site.'"></p>
+          <button class="btn" x-show="pf.tracking" @click="openURL(proSiteInfo()?.url)"><svg class="i"><use href="#i-external"/></svg> Open site</button>
+        </div></div>
+        <template x-if="pf.report?.requests">
+          <div class="stack">
+            <div class="grid grid-4">
+              <div class="card kpi"><span class="kpi-label">Requests measured</span><b class="kpi-value" x-text="pf.report.requests"></b><span class="kpi-sub">the newest 1,000 kept</span></div>
+              <div class="card kpi"><span class="kpi-label">Typical response</span><b class="kpi-value" x-text="ms(pf.report.avg_ms)"></b><span class="kpi-sub">average</span></div>
+              <div class="card kpi"><span class="kpi-label">95% within</span><b class="kpi-value" x-text="ms(pf.report.p95_ms)"></b><span class="kpi-sub">the slow tail</span></div>
+              <div class="card kpi"><span class="kpi-label">Queries per request</span><b class="kpi-value" x-text="pf.report.avg_queries"></b><span class="kpi-sub">average</span></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>N+1 queries</h2><span class="sub" x-text="pf.report.n_plus_one.length ? 'The same query from one line, ' + 5 + '+ times in one request' : ''"></span></div>
+              <div class="card-pad" x-show="!pf.report.n_plus_one.length"><div class="alert success small"><svg class="i"><use href="#i-check"/></svg><div>None found in the measured requests. A query repeated 5 or more times from one line in one request would show up here.</div></div></div>
+              <template x-for="q in pf.report.n_plus_one" :key="sqlKey(q)">
+                <div class="perf-item">
+                  <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge badge-red" x-text="q.per_request + '× in one request'"></span><span class="small muted" x-text="'on ' + q.routes.join(', ') + (q.requests > 1 ? ' · in ' + q.requests + ' requests' : '')"></span></div>
+                  <code class="sql" x-text="q.sql"></code>
+                  <div class="small"><span class="muted">From</span> <code x-text="q.src"></code><span class="badge" style="margin-left:6px" x-show="q.pkg" x-text="'via ' + q.pkg"></span></div>
+                  <div class="perf-fix small" x-show="q.relation">
+                    <svg class="i"><use href="#i-sparkles"/></svg>
+                    <div class="grow">Load it once, before the loop: add <code x-text="&quot;->with('&quot; + q.relation + &quot;')&quot;"></code> (or <code x-text="&quot;$model->load('&quot; + q.relation + &quot;')&quot;"></code>) where the list is queried. Laravel then runs 1 query instead of <span x-text="q.per_request"></span>.</div>
+                    <button class="btn btn-ghost btn-sm" @click="copy(&quot;->with('&quot; + q.relation + &quot;')&quot;)"><svg class="i"><use href="#i-copy"/></svg> Copy</button>
+                  </div>
+                  <div class="actions"><button class="btn btn-ghost btn-sm" @click="openPerfTrace(q.trace)"><svg class="i"><use href="#i-timeline"/></svg> Open the request</button></div>
+                </div>
+              </template>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>Slowest pages</h2><span class="sub">by average time</span></div>
+              <div class="table-wrap"><table class="table perf-table">
+                <thead><tr><th>Page</th><th class="num">Requests</th><th class="num">Average</th><th class="num">95% within</th><th class="num">Slowest</th><th class="num">Queries</th><th></th></tr></thead>
+                <tbody><template x-for="r in pf.report.routes.slice(0, 15)" :key="r.route"><tr>
+                  <td class="mono ellipsis" style="max-width:320px" :title="r.route" x-text="r.route"></td><td class="num" x-text="r.count"></td>
+                  <td class="num" :class="{ 'err-text': r.avg_ms > 500 }" x-text="ms(r.avg_ms)"></td><td class="num" x-text="ms(r.p95_ms)"></td><td class="num" x-text="ms(r.max_ms)"></td>
+                  <td class="num" :class="{ 'err-text': r.max_queries >= 50 }" x-text="r.avg_queries + (r.max_queries > r.avg_queries ? ' (max ' + r.max_queries + ')' : '')"></td>
+                  <td><button class="btn btn-link small" @click="openPerfTrace(r.slowest)">Slowest</button></td></tr></template></tbody>
+              </table></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>Slow queries</h2><span class="sub">100 ms or more</span></div>
+              <div class="card-pad" x-show="!pf.report.slow.length"><div class="alert success small"><svg class="i"><use href="#i-check"/></svg><div>No query took 100 ms or more.</div></div></div>
+              <template x-for="q in pf.report.slow" :key="sqlKey(q)">
+                <div class="perf-item">
+                  <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge badge-orange" x-text="'up to ' + ms(q.max_ms)"></span><span class="small muted" x-text="'average ' + ms(q.avg_ms) + ' · ran ' + q.count + '×'"></span><span class="badge" x-show="q.pkg" x-text="'from ' + q.pkg"></span></div>
+                  <code class="sql" x-text="q.sql"></code>
+                  <div class="small" x-show="q.src"><span class="muted">From</span> <code x-text="q.src"></code></div>
+                  <div class="actions"><button class="btn btn-sm" @click="explainQuery(q)" :disabled="pf.explain[sqlKey(q)]?.loading"><svg class="i" :class="{ spin: pf.explain[sqlKey(q)]?.loading }"><use :href="pf.explain[sqlKey(q)]?.loading ? '#i-loader' : '#i-search'"/></svg> Explain &amp; time it</button>
+                    <span class="small muted">Runs it 5 times inside a transaction that is rolled back. SELECT only.</span></div>
+                  <div class="alert error small" x-show="pf.explain[sqlKey(q)]?.error"><svg class="i"><use href="#i-alert"/></svg><div x-text="pf.explain[sqlKey(q)]?.error"></div></div>
+                  <template x-if="pf.explain[sqlKey(q)]?.result">
+                    <div class="explain">
+                      <div class="row small" style="gap:14px;flex-wrap:wrap"><span><span class="muted">Takes</span> <b x-text="ms(pf.explain[sqlKey(q)].result.ms)"></b></span><span><span class="muted">Rows</span> <b x-text="pf.explain[sqlKey(q)].result.rows"></b></span><span class="muted" x-text="pf.explain[sqlKey(q)].result.driver"></span></div>
+                      <div class="alert small" x-show="pf.explain[sqlKey(q)].result.full_scan?.length"><svg class="i"><use href="#i-alert"/></svg><div>Reads every row of <b x-text="pf.explain[sqlKey(q)].result.full_scan.join(', ')"></b>. An index on the columns in its WHERE or ORDER BY usually fixes this: add it in a migration with <code>$table->index('column')</code>.</div></div>
+                      <div class="alert success small" x-show="!pf.explain[sqlKey(q)].result.full_scan?.length"><svg class="i"><use href="#i-check"/></svg><div>Uses an index. If it's still slow, it may return too many rows: select fewer columns or paginate.</div></div>
+                      <details><summary class="small muted">Query plan</summary><pre class="joblog" x-text="JSON.stringify(pf.explain[sqlKey(q)].result.plan, null, 2)"></pre></details>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>Third-party code</h2><span class="sub">time packages spend in queries and listeners</span></div>
+              <div class="card-pad" x-show="!pf.report.packages.length"><div class="small muted">No package ran its own queries or listeners in the measured requests.</div></div>
+              <div class="table-wrap" x-show="pf.report.packages.length"><table class="table perf-table">
+                <thead><tr><th>Package</th><th class="num">In requests</th><th class="num">Queries</th><th class="num">Query time</th><th class="num">Listener time</th><th>Share of request time</th></tr></thead>
+                <tbody><template x-for="p in pf.report.packages.slice(0, 12)" :key="p.package"><tr>
+                  <td class="mono" x-text="p.package"></td><td class="num" x-text="p.requests"></td><td class="num" x-text="p.queries"></td><td class="num" x-text="ms(p.query_ms)"></td><td class="num" x-text="ms(p.listener_ms)"></td>
+                  <td><div class="share"><i :style="'width:' + Math.max(2, Math.min(100, p.share * 100)) + '%'"></i><span x-text="Math.round(p.share * 100) + '%'"></span></div></td></tr></template></tbody>
+              </table></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Load test -->
+      <div x-show="proSite && pf.tab === 'load'" class="stack">
+        <div class="card card-pad">
+          <div class="load-form">
+            <label class="field"><span>Page</span>
+              <input type="text" class="mono" list="pf-routes" x-model="pf.load.path" placeholder="/" spellcheck="false" :disabled="!!loadJob() && !loadJob().done">
+              <datalist id="pf-routes"><template x-for="r in perfRoutes()" :key="r"><option :value="r"></option></template></datalist>
+              <small x-text="(proSiteInfo()?.url || '') + (pf.load.path || '/')"></small></label>
+            <label class="field"><span>Users at once</span>
+              <input type="number" min="1" max="200" x-model.number="pf.load.users" :disabled="!!loadJob() && !loadJob().done">
+              <div class="chips" style="margin-top:4px"><template x-for="n in [1, 10, 25, 50, 100]" :key="n"><button type="button" class="chip-btn" :class="{ on: +pf.load.users === n }" @click="pf.load.users = n" x-text="n"></button></template></div></label>
+            <label class="field"><span>For</span>
+              <select x-model.number="pf.load.seconds" :disabled="!!loadJob() && !loadJob().done"><option :value="10">10 seconds</option><option :value="15">15 seconds</option><option :value="30">30 seconds</option><option :value="60">1 minute</option></select></label>
+          </div>
+          <div class="alert info small" style="margin-top:12px"><svg class="i"><use href="#i-info"/></svg><div>Each user loads the page again as soon as it answers. These are real GET requests to your local site, so its code runs (and writes, if the page writes). Logged-in pages answer with a redirect to the login page.</div></div>
+          <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px">
+            <button class="btn" @click="startLoadTest()" :disabled="!!loadJob() && !loadJob().done"><svg class="i"><use href="#i-play"/></svg> <span x-text="'Run with ' + (pf.load.users || 1) + ' user' + (+pf.load.users === 1 ? '' : 's')"></span></button>
+          </div>
+        </div>
+
+        <template x-if="loadJob() && !loadJob().done">
+          <div class="card card-pad" role="status">
+            <div class="inline-prog-head"><span class="ellipsis" x-text="loadJob().detail || 'Starting…'"></span><b x-text="jobPct(loadJob())"></b></div>
+            <div class="bar"><i :style="'width:' + Math.max(4, loadJob().progress * 100) + '%'"></i></div>
+          </div>
+        </template>
+        <div class="alert error" x-show="loadJob()?.done && loadJob()?.error"><svg class="i"><use href="#i-alert"/></svg><div x-text="loadJob()?.error"></div></div>
+
+        <template x-if="loadResult()">
+          <div class="stack">
+            <div class="small muted" x-text="loadResult().users + ' users on ' + loadResult().url + ' for ' + loadResult().seconds + ' s · ' + loadResult().requests + ' requests'"></div>
+            <div class="grid grid-4">
+              <div class="card kpi"><span class="kpi-label">Requests per second</span><b class="kpi-value" x-text="loadResult().rps"></b><span class="kpi-sub" x-text="loadResult().errors ? loadResult().errors + ' failed' : 'no errors'"></span></div>
+              <div class="card kpi"><span class="kpi-label">Typical response</span><b class="kpi-value" x-text="ms(loadResult().p50)"></b><span class="kpi-sub" x-text="'average ' + ms(loadResult().avg_ms)"></span></div>
+              <div class="card kpi"><span class="kpi-label">95% within</span><b class="kpi-value" x-text="ms(loadResult().p95)"></b><span class="kpi-sub" x-text="'99% within ' + ms(loadResult().p99) + ' · slowest ' + ms(loadResult().max_ms)"></span></div>
+              <div class="card kpi"><span class="kpi-label">PHP workers busy</span><b class="kpi-value" x-text="loadResult().max_workers ? loadResult().peak_busy + ' / ' + loadResult().max_workers : '—'"></b><span class="kpi-sub" x-text="loadResult().workers_full ? 'all busy: requests waited' : 'peak during the test'"></span></div>
+            </div>
+            <template x-for="f in loadResult().findings" :key="f"><div class="alert small" :class="{ success: f.startsWith('Steady') }"><svg class="i"><use :href="f.startsWith('Steady') ? '#i-check' : '#i-alert'"/></svg><div x-text="f"></div></div></template>
+            <div class="grid grid-3">
+              <template x-for="t in [
+                  { key: 'rps', label: 'Requests per second', value: loadResult().rps, fmt: v => v + ' /s' },
+                  { key: 'p95', label: '95% response time', value: ms(loadResult().p95), fmt: v => ms(v) },
+                  { key: 'cpu', label: 'PHP CPU (% of one core)', value: Math.round(loadResult().peak_cpu) + '% peak', fmt: v => Math.round(v) + '%' },
+                ]" :key="t.key">
+                <div class="card kpi">
+                  <span class="kpi-label" x-text="t.label"></span>
+                  <b class="kpi-value" style="font-size:20px" x-text="t.value"></b>
+                  <div class="spark" style="height:64px" @pointermove="loadHover(t.key, $event)" @pointerleave="pf.hover = { key: '', i: -1 }" role="img" :aria-label="t.label + ' during the test'">
+                    <svg viewBox="0 0 200 64" preserveAspectRatio="none" aria-hidden="true"><path class="spark-area" :d="loadPath(t.key, 200, 64, true)"/><path class="spark-line" :d="loadPath(t.key, 200, 64, false)"/></svg>
+                    <template x-if="loadPoint(t.key, t.fmt)"><div><i class="spark-cross" :style="'left:' + loadPoint(t.key, t.fmt).left + '%'"></i><span class="spark-tip" :style="'left:' + Math.min(78, Math.max(22, loadPoint(t.key, t.fmt).left)) + '%'" x-text="loadPoint(t.key, t.fmt).text"></span></div></template>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <details class="card card-pad"><summary class="small" style="cursor:pointer;font-weight:600">The numbers, every half second</summary>
+              <div class="table-wrap" style="margin-top:10px"><table class="table perf-table"><thead><tr><th class="num">Second</th><th class="num">Requests/s</th><th class="num">95% within</th><th class="num">Busy workers</th><th class="num">PHP CPU</th><th class="num">PHP memory</th><th class="num">Errors</th></tr></thead>
+                <tbody><template x-for="p in loadResult().series" :key="p.t"><tr><td class="num" x-text="p.t"></td><td class="num" x-text="p.rps"></td><td class="num" x-text="ms(p.p95)"></td><td class="num" x-text="p.busy"></td><td class="num" x-text="Math.round(p.cpu) + '%'"></td><td class="num" x-text="p.mem_mb + ' MB'"></td><td class="num" x-text="p.errors"></td></tr></template></tbody></table></div>
+              <div class="chips" style="margin-top:10px"><template x-for="[k, v] in Object.entries(loadResult().statuses)" :key="k"><span class="badge" x-text="k + ': ' + v"></span></template></div>
+            </details>
+          </div>
+        </template>
+        <div class="card" x-show="!loadJob() && !loadResult()"><div class="empty"><div class="tile-icon tone-blue"><svg class="i"><use href="#i-activity"/></svg></div><h3>How many users can this page take?</h3><p>Pick a page and a number of users. LaraMonster sends their requests and watches the site's PHP while they browse.</p></div></div>
+      </div>
+    </section>
+
     <section x-show="page === 'jobs' && s?.pro && !proLocked">
       <div class="page-head">
         <div><h1>Jobs &amp; Queues</h1><p>What each job does and when it runs, in plain words. Run them, and keep queues moving.</p></div>
@@ -908,12 +1142,12 @@
           <label class="row small muted" style="gap:8px">Site
             <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
           </label>
-          <div class="tabs" role="tablist">
-            <button role="tab" :class="{ on: jb.tab === 'jobs' }" @click="jb.tab = 'jobs'; loadJobs()">Jobs</button>
-            <button role="tab" :class="{ on: jb.tab === 'queues' }" @click="jb.tab = 'queues'; loadQueues()">Queues <span class="count" x-show="jb.queues && (totalWaiting() || jb.queues.failed?.length)" x-text="totalWaiting() + (jb.queues?.failed?.length ? ' · ' + jb.queues.failed.length + ' failed' : '')"></span></button>
-          </div>
         </div>
       </div>
+      <nav class="page-tabs" role="tablist" aria-label="Jobs and queues" x-show="proSites?.length">
+        <button role="tab" :aria-selected="jb.tab === 'jobs'" :class="{ on: jb.tab === 'jobs' }" @click="jb.tab = 'jobs'; loadJobs()"><svg class="i"><use href="#i-box"/></svg> Jobs <span class="count" x-show="jb.data?.jobs?.length" x-text="jb.data?.jobs?.length"></span></button>
+        <button role="tab" :aria-selected="jb.tab === 'queues'" :class="{ on: jb.tab === 'queues' }" @click="jb.tab = 'queues'; loadQueues()"><svg class="i"><use href="#i-inbox"/></svg> Queues &amp; workers <span class="count" :class="{ hot: jb.queues?.failed?.length }" x-show="jb.queues && (totalWaiting() || jb.queues.failed?.length)" x-text="totalWaiting() + ' waiting' + (jb.queues?.failed?.length ? ' · ' + jb.queues.failed.length + ' failed' : '')"></span></button>
+      </nav>
 
       <div class="alert error" style="margin-bottom:16px" x-show="proError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="proError"></div><button class="btn btn-sm btn-ghost" @click="openPro('jobs')">Try again</button></div>
       <div class="card" x-show="proSites && !proSites.length"><div class="empty"><h3>No Laravel sites yet</h3><p>Jobs & Queues works on Laravel projects LaraMonster serves.</p><button class="btn" @click="location.hash = 'sites'">Sites</button></div></div>
@@ -1309,6 +1543,87 @@
   </main>
 </div>
 
+<!-- ============ PHP SETTINGS (all versions / one version) ============ -->
+<div class="modal-back" x-show="ini.open" x-cloak @click.self="closeIni()" x-transition.opacity @keydown.escape.window="ini.open && closeIni()">
+  <div class="card modal ini-modal" role="dialog" aria-modal="true" aria-labelledby="ini-title">
+    <div class="card-head">
+      <div style="min-width:0"><h2 id="ini-title" x-text="iniTitle()"></h2><div class="small muted">php.ini values, without editing the file</div></div>
+      <button class="btn btn-ghost icon-btn" @click="closeIni()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body card-pad">
+        <template x-if="ini.loading && !ini.view"><div class="stack"><div class="skeleton" style="height:40px"></div><div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:64px"></div></div></template>
+        <div class="alert error" x-show="ini.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="ini.error"></div><button class="btn btn-link small" @click="loadIni(ini.scope)">Try again</button></div></div>
+        <template x-if="ini.view">
+          <div class="stack">
+            <div class="ini-intro small muted">
+              <span x-show="iniLayer() === 'global'">Applies to every PHP version LaraMonster runs. A version or a site can override each value.</span>
+              <span x-show="iniLayer() === 'version'">Applies to sites and commands on PHP <b x-text="ini.view.version"></b>. Overrides the settings for every version; a site can override these.</span>
+              <span x-show="iniLayer() === 'site'">Applies only to this site, in the browser and in its <code>php</code>, <code>composer</code> and <code>artisan</code> commands. A site with its own settings gets its own PHP process, so they never reach other sites.</span>
+              Leave a field empty to inherit. Values shown are what PHP <span x-text="ini.view.version"></span> uses now.
+            </div>
+            <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Filter settings…" x-model="ini.q" aria-label="Filter PHP settings"></div>
+            <template x-for="g in ini.view.groups" :key="g">
+              <div x-show="iniRows(g).length">
+                <div class="section-title" x-text="g"></div>
+                <div class="ini-list">
+                  <template x-for="r in iniRows(g)" :key="r.name">
+                    <div class="ini-row" :class="{ changed: iniChanged(r), own: iniOwn(r) !== '' }">
+                      <div class="ini-what">
+                        <div class="ini-label"><b x-text="r.label"></b><code x-show="r.label !== r.name" x-text="r.name"></code></div>
+                        <div class="small muted" x-show="r.help" x-text="r.help"></div>
+                        <div class="ini-now small">
+                          <span class="muted">Now:</span> <b x-text="iniShow(r, r.value)"></b>
+                          <span class="badge" :class="{ 'badge-blue': r.source !== 'php.ini' }" x-text="iniSourceLabel(r.source)"></span>
+                          <span class="badge badge-orange" x-show="iniChanged(r)">Unsaved</span>
+                        </div>
+                        <span class="err-text small" x-show="iniInvalid(r)" x-text="iniInvalid(r)"></span>
+                      </div>
+                      <div class="ini-input">
+                        <template x-if="r.kind === 'onoff'">
+                          <select :value="iniOwn(r) === '' ? '' : (iniShow(r, iniOwn(r)) === 'On' ? '1' : '0')" @change="iniSet(r, $event.target.value)" :aria-label="r.label">
+                            <option value="" x-text="'Inherit (' + iniShow(r, iniInherited(r).value) + ')'"></option><option value="1">On</option><option value="0">Off</option>
+                          </select>
+                        </template>
+                        <template x-if="r.kind === 'select'">
+                          <select :value="iniOwn(r)" @change="iniSet(r, $event.target.value)" :aria-label="r.label">
+                            <option value="" x-text="'Inherit (' + iniShow(r, iniInherited(r).value) + ')'"></option>
+                            <template x-for="o in r.options" :key="o"><option :value="o" x-text="o" :selected="iniOwn(r) === o"></option></template>
+                          </select>
+                        </template>
+                        <template x-if="!['onoff', 'select'].includes(r.kind)">
+                          <input type="text" :value="iniOwn(r)" @input="iniSet(r, $event.target.value.trim())" :placeholder="iniShow(r, iniInherited(r).value) + ' (inherited)'" :class="{ invalid: iniInvalid(r) }" :aria-label="r.label" spellcheck="false" :inputmode="['seconds', 'number'].includes(r.kind) ? 'numeric' : 'text'">
+                        </template>
+                        <div class="small muted ellipsis" x-show="iniOwn(r) === ''" x-text="'From ' + iniInherited(r).from"></div>
+                        <button class="btn btn-link small" x-show="iniOwn(r) !== ''" @click="iniReset(r)" x-text="'Reset to ' + iniShow(r, iniInherited(r).value)"></button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+            <div class="empty" style="padding:20px" x-show="ini.q && !ini.view.rows.some(r => r.name.includes(ini.q.toLowerCase()) || r.label.toLowerCase().includes(ini.q.toLowerCase()))"><h3>No setting matches</h3><p>Add it below by its php.ini name.</p></div>
+            <div class="ini-add">
+              <div class="small" style="color:var(--title);font-weight:600">Add another setting</div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <input type="text" class="mono" x-model="ini.newName" placeholder="xdebug.mode" aria-label="Setting name" spellcheck="false" style="flex:1 1 160px">
+                <input type="text" x-model="ini.newVal" placeholder="value" aria-label="Setting value" spellcheck="false" style="flex:1 1 120px" @keydown.enter="iniAdd()">
+                <button class="btn btn-sm btn-ghost" :disabled="!ini.newName.trim()" @click="iniAdd()"><svg class="i"><use href="#i-plus"/></svg> Add</button>
+              </div>
+            </div>
+            <div class="small muted" x-show="ini.view.ini_file">The base values come from <code x-text="ini.view.ini_file"></code>; settings here override it.</div>
+          </div>
+        </template>
+    </div>
+    <div class="modal-foot">
+      <span class="small" :class="iniDirty() ? '' : 'muted'" x-text="iniDirty() ? iniChangeCount() + ' unsaved change' + (iniChangeCount() === 1 ? '' : 's') + (iniLayer() === 'site' ? '' : ' · saving restarts PHP') : 'All changes saved'"></span>
+      <div class="actions">
+        <button class="btn btn-ghost" x-show="iniDirty()" @click="ini.edits = {}">Discard</button>
+        <button class="btn" :disabled="!iniDirty() || ini.saving" @click="saveIni()"><svg class="i spin" x-show="ini.saving"><use href="#i-loader"/></svg> Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ SITE PANEL ============ -->
 <div class="modal-back" x-show="panel.open" x-cloak @click.self="closeSitePanel()" x-transition.opacity @keydown.window="panelKeys($event)">
   <template x-if="panel.open && panelSite()">
@@ -1324,6 +1639,7 @@
       <div class="tabs" role="tablist">
         <button role="tab" :aria-selected="panel.tab === 'general'" :class="{ on: panel.tab === 'general' }" @click="setPanelTab('general')">General</button>
         <button role="tab" :aria-selected="panel.tab === 'env'" :class="{ on: panel.tab === 'env' }" @click="setPanelTab('env')">Environment <span class="count" x-show="envChangeCount()" x-text="envChangeCount()"></span></button>
+        <button role="tab" x-show="!panelSite().proxy" :aria-selected="panel.tab === 'php'" :class="{ on: panel.tab === 'php' }" @click="setPanelTab('php')">PHP <span class="count" x-show="ini.scope === 'site:' + panel.name && iniChangeCount()" x-text="iniChangeCount()"></span></button>
         <button role="tab" x-show="panelSite().laravel" :aria-selected="panel.tab === 'packages'" :class="{ on: panel.tab === 'packages' }" @click="setPanelTab('packages')">Packages <span class="count" x-show="sitePk.sel.length" x-text="sitePk.sel.length"></span></button>
       </div>
     </div>
@@ -1465,6 +1781,79 @@
           </template>
         </div>
       </template>
+    </div>
+
+    <!-- PHP settings for this site -->
+    <div class="modal-body card-pad" x-show="panel.tab === 'php'">
+        <template x-if="ini.loading && !ini.view"><div class="stack"><div class="skeleton" style="height:40px"></div><div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:64px"></div></div></template>
+        <div class="alert error" x-show="ini.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="ini.error"></div><button class="btn btn-link small" @click="loadIni(ini.scope)">Try again</button></div></div>
+        <template x-if="ini.view">
+          <div class="stack">
+            <div class="ini-intro small muted">
+              <span x-show="iniLayer() === 'global'">Applies to every PHP version LaraMonster runs. A version or a site can override each value.</span>
+              <span x-show="iniLayer() === 'version'">Applies to sites and commands on PHP <b x-text="ini.view.version"></b>. Overrides the settings for every version; a site can override these.</span>
+              <span x-show="iniLayer() === 'site'">Applies only to this site, in the browser and in its <code>php</code>, <code>composer</code> and <code>artisan</code> commands. A site with its own settings gets its own PHP process, so they never reach other sites.</span>
+              Leave a field empty to inherit. Values shown are what PHP <span x-text="ini.view.version"></span> uses now.
+            </div>
+            <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Filter settings…" x-model="ini.q" aria-label="Filter PHP settings"></div>
+            <template x-for="g in ini.view.groups" :key="g">
+              <div x-show="iniRows(g).length">
+                <div class="section-title" x-text="g"></div>
+                <div class="ini-list">
+                  <template x-for="r in iniRows(g)" :key="r.name">
+                    <div class="ini-row" :class="{ changed: iniChanged(r), own: iniOwn(r) !== '' }">
+                      <div class="ini-what">
+                        <div class="ini-label"><b x-text="r.label"></b><code x-show="r.label !== r.name" x-text="r.name"></code></div>
+                        <div class="small muted" x-show="r.help" x-text="r.help"></div>
+                        <div class="ini-now small">
+                          <span class="muted">Now:</span> <b x-text="iniShow(r, r.value)"></b>
+                          <span class="badge" :class="{ 'badge-blue': r.source !== 'php.ini' }" x-text="iniSourceLabel(r.source)"></span>
+                          <span class="badge badge-orange" x-show="iniChanged(r)">Unsaved</span>
+                        </div>
+                        <span class="err-text small" x-show="iniInvalid(r)" x-text="iniInvalid(r)"></span>
+                      </div>
+                      <div class="ini-input">
+                        <template x-if="r.kind === 'onoff'">
+                          <select :value="iniOwn(r) === '' ? '' : (iniShow(r, iniOwn(r)) === 'On' ? '1' : '0')" @change="iniSet(r, $event.target.value)" :aria-label="r.label">
+                            <option value="" x-text="'Inherit (' + iniShow(r, iniInherited(r).value) + ')'"></option><option value="1">On</option><option value="0">Off</option>
+                          </select>
+                        </template>
+                        <template x-if="r.kind === 'select'">
+                          <select :value="iniOwn(r)" @change="iniSet(r, $event.target.value)" :aria-label="r.label">
+                            <option value="" x-text="'Inherit (' + iniShow(r, iniInherited(r).value) + ')'"></option>
+                            <template x-for="o in r.options" :key="o"><option :value="o" x-text="o" :selected="iniOwn(r) === o"></option></template>
+                          </select>
+                        </template>
+                        <template x-if="!['onoff', 'select'].includes(r.kind)">
+                          <input type="text" :value="iniOwn(r)" @input="iniSet(r, $event.target.value.trim())" :placeholder="iniShow(r, iniInherited(r).value) + ' (inherited)'" :class="{ invalid: iniInvalid(r) }" :aria-label="r.label" spellcheck="false" :inputmode="['seconds', 'number'].includes(r.kind) ? 'numeric' : 'text'">
+                        </template>
+                        <div class="small muted ellipsis" x-show="iniOwn(r) === ''" x-text="'From ' + iniInherited(r).from"></div>
+                        <button class="btn btn-link small" x-show="iniOwn(r) !== ''" @click="iniReset(r)" x-text="'Reset to ' + iniShow(r, iniInherited(r).value)"></button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+            <div class="empty" style="padding:20px" x-show="ini.q && !ini.view.rows.some(r => r.name.includes(ini.q.toLowerCase()) || r.label.toLowerCase().includes(ini.q.toLowerCase()))"><h3>No setting matches</h3><p>Add it below by its php.ini name.</p></div>
+            <div class="ini-add">
+              <div class="small" style="color:var(--title);font-weight:600">Add another setting</div>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <input type="text" class="mono" x-model="ini.newName" placeholder="xdebug.mode" aria-label="Setting name" spellcheck="false" style="flex:1 1 160px">
+                <input type="text" x-model="ini.newVal" placeholder="value" aria-label="Setting value" spellcheck="false" style="flex:1 1 120px" @keydown.enter="iniAdd()">
+                <button class="btn btn-sm btn-ghost" :disabled="!ini.newName.trim()" @click="iniAdd()"><svg class="i"><use href="#i-plus"/></svg> Add</button>
+              </div>
+            </div>
+            <div class="small muted" x-show="ini.view.ini_file">The base values come from <code x-text="ini.view.ini_file"></code>; settings here override it.</div>
+          </div>
+        </template>
+    </div>
+    <div class="modal-foot" x-show="panel.tab === 'php' && ini.view">
+      <span class="small" :class="iniDirty() ? '' : 'muted'" x-text="iniDirty() ? iniChangeCount() + ' unsaved change' + (iniChangeCount() === 1 ? '' : 's') + (iniLayer() === 'site' ? '' : ' · saving restarts PHP') : 'All changes saved'"></span>
+      <div class="actions">
+        <button class="btn btn-ghost" x-show="iniDirty()" @click="ini.edits = {}">Discard</button>
+        <button class="btn" :disabled="!iniDirty() || ini.saving" @click="saveIni()"><svg class="i spin" x-show="ini.saving"><use href="#i-loader"/></svg> Save</button>
+      </div>
     </div>
 
     <!-- Packages -->
@@ -1937,6 +2326,8 @@
         <div class="bar" :class="{ indet: upd?.phase === 'installing' }"><i :style="'width:' + Math.max(4, upd?.progress || 0) + '%'"></i></div>
       </div>
       <div class="alert info small" x-show="upd?.kind === 'store'"><svg class="i"><use href="#i-info"/></svg><div>This copy comes from the Microsoft Store, which installs updates by itself. Open the Store to get it now.</div></div>
+      <template x-if="upd?.kind === 'translocated'"><div class="alert small"><svg class="i"><use href="#i-info"/></svg><div><b>Move LaraMonster to Applications first.</b> macOS runs it from a read-only copy because it was opened where it was downloaded, so it can't replace itself.
+        <ol class="steps-mini"><li>Quit LaraMonster (tray icon → Stop engine and quit).</li><li>In Finder, drag <b>LaraMonster</b> from Downloads into <b>Applications</b>.</li><li>Open it from Applications. Updates then install by themselves.</li></ol></div></div></template>
       <div class="alert small" x-show="upd?.phase === 'error'"><svg class="i"><use href="#i-info"/></svg><div x-text="upd?.error"></div></div>
       <a class="small" href="#" x-show="update?.notes_url" @click.prevent="openURL(update.notes_url)">What's new</a>
     </div>
@@ -1953,12 +2344,20 @@
 <!-- ============ jobs & toasts ============ -->
 <div class="dock" aria-live="polite">
   <template x-for="j in visibleJobs()" :key="j.id">
-    <div class="job">
-      <div class="row"><b class="grow ellipsis" x-text="j.title"></b>
+    <div class="job" :class="{ 'job-failed': j.error }">
+      <div class="job-head">
+        <svg class="i job-icon" :class="{ spin: !j.done, ok: j.done && !j.error, err: j.error }"><use :href="!j.done ? '#i-loader' : (j.error ? '#i-alert' : '#i-check')"/></svg>
+        <b class="grow ellipsis" :title="j.title" x-text="j.title"></b>
+        <span class="job-pct" x-show="jobPct(j)" x-text="jobPct(j)"></span>
         <span class="badge badge-green" x-show="j.done && !j.error">Done</span>
-        <span class="badge badge-red" x-show="j.error">Failed</span></div>
-      <div class="detail ellipsis" x-text="j.error || j.detail"></div>
+        <span class="badge badge-red" x-show="j.error">Failed</span>
+      </div>
+      <div class="job-step ellipsis" x-show="!j.done && jobStep(j)" x-text="jobStep(j)"></div>
       <div class="bar" :class="{ indet: !j.done && j.progress < 0 }" x-show="!j.done"><i :style="'width:' + Math.max(4, j.progress * 100) + '%'"></i></div>
+      <div class="job-meta">
+        <span class="ellipsis" :class="{ 'err-text': j.error }" :title="jobSizes(j)" x-text="jobSizes(j)"></span>
+        <span class="job-speed" x-show="!j.done && jobSpeed(j)" x-text="jobSpeed(j)"></span>
+      </div>
     </div>
   </template>
   <template x-for="t in toasts" :key="t.id">
