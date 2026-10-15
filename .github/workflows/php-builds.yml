@@ -19,8 +19,9 @@ permissions:
   contents: write
 
 env:
-  # Every extension LaraMonster's PHP had before, plus intl and sodium.
-  EXTENSIONS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,intl,mbstring,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+  # Every extension LaraMonster's PHP had before, plus intl, sodium and
+  # mbregex (mb_split: Laravel's Str::studly needs it).
+  EXTENSIONS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,intl,mbregex,mbstring,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
   SPC: https://dl.static-php.dev/static-php-cli/spc-bin/nightly
 
 jobs:
@@ -58,6 +59,7 @@ jobs:
           for ext in intl pdo_sqlite pdo_mysql pdo_pgsql sodium redis mbstring openssl; do
             $bin/php -r "extension_loaded('$ext') || exit(1);" || { echo "missing $ext"; exit 1; }
           done
+          $bin/php -r "function_exists('mb_split') || exit(1);" || { echo "missing mbregex (mb_split)"; exit 1; }
           $bin/php-fpm -v
           full=$($bin/php -r 'echo PHP_VERSION;')
           mkdir -p out
