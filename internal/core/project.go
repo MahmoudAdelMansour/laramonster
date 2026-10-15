@@ -48,7 +48,7 @@ type Reporter interface {
 
 // CreateProject runs the whole recipe. Optional steps that fail (a package's
 // setup command, npm, git) are reported as warnings and don't abort.
-func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, error) {
+func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []Warning, error) {
 	o.Name = sites.Slug(o.Name)
 	if o.Name == "" {
 		return "", nil, errors.New("enter a project name")
@@ -102,12 +102,8 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 		}
 	}
 
-	var warnings []string
-	warn := func(format string, a ...any) {
-		msg := fmt.Sprintf(format, a...)
-		warnings = append(warnings, msg)
-		fmt.Fprintln(r, "warning: "+msg)
-	}
+	w := &warnings{out: r}
+	warn := func(format string, a ...any) { w.add(nil, "", format, a...) }
 	steps := []string{"create", "site", "env", "packages", "migrate", "npm", "git"}
 	step := func(name, detail string) {
 		r.Set(float64(slices.Index(steps, name))/float64(len(steps)), detail)
@@ -138,17 +134,17 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 	step("site", "Serving it at "+o.Domain+"."+c.TLD)
 	if o.Domain != o.Name || !slices.Contains(c.Paths, dir) {
 		if _, err := Link(o.Domain, target); err != nil {
-			return target, warnings, err
+			return target, w.list, err
 		}
 	}
 	if o.PHP != "" {
 		if err := Mutate(func(c *config.Config) error { c.Isolated[o.Domain] = inst.Version; return nil }); err != nil {
-			return target, warnings, err
+			return target, w.list, err
 		}
 	}
 	if o.Secure {
 		if err := Mutate(func(c *config.Config) error { c.Secured[o.Domain] = true; return nil }); err != nil {
-			return target, warnings, err
+			return target, w.list, err
 		}
 	}
 	c, _ = config.Load()
@@ -157,7 +153,7 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 	isLaravel := fileExists(filepath.Join(target, "artisan"))
 	if !isLaravel {
 		r.Set(1, "done")
-		return target, warnings, nil
+		return target, w.list, nil
 	}
 
 	// 3. .env: URL, database, mail, redis.
@@ -169,7 +165,12 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 		service := map[string]string{"mysql": "mysql", "pgsql": "postgres"}[o.Database]
 		port, err := env.StartService(service)
 		if err != nil {
-			warn("%s isn't available (%v): using SQLite instead", service, err)
+			label := map[string]string{"mysql": "MySQL", "pgsql": "PostgreSQL"}[o.Database]
+			w.add(&Fix{Label: "Use " + label, Kind: FixDatabase, Args: []string{o.Database}}, "",
+				"%s isn't available (%v): using SQLite instead", service, err)
+			if !inst.HasExtension("pdo_sqlite") {
+				warn("PHP %s (%s) can't use SQLite either (pdo_sqlite is missing): migrations will fail until the database works", inst.Full, phpSource(inst))
+			}
 			break
 		}
 		user := map[string]string{"mysql": "root", "pgsql": "postgres"}[o.Database]
@@ -179,8 +180,9 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 		vars["DB_DATABASE"] = dbName
 		vars["DB_USERNAME"] = user
 		vars["DB_PASSWORD"] = ""
-		if err := createDatabase(inst, target, o.Database, port, user, dbName, r); err != nil {
-			warn("couldn't create database %s: %v", dbName, err)
+		if t := newTail(r); createDatabase(inst, target, o.Database, port, user, dbName, t) != nil {
+			w.add(&Fix{Label: "Create it and migrate", Kind: FixDatabase, Args: []string{o.Database}}, t.Detail(),
+				"couldn't create database %s", dbName)
 		}
 	}
 	if o.Mail {
@@ -230,116 +232,29 @@ func CreateProject(o ProjectOptions, env Env, r Reporter) (string, []string, err
 	// 4. Packages.
 	if len(o.Packages) > 0 {
 		step("packages", "Installing packages")
-		var prod, dev []string
-		for _, name := range slices.Compact(slices.Sorted(slices.Values(o.Packages))) {
-			if !validPackage.MatchString(name) {
-				warn("skipped invalid package name %q", name)
-				continue
-			}
-			if p, ok := findPackage(name); ok && p.Dev {
-				dev = append(dev, name)
-			} else {
-				prod = append(prod, name)
-			}
-		}
-		if slices.Contains(dev, "pestphp/pest") {
-			dev = append(dev, "pestphp/pest-plugin-laravel")
-		}
-		installed := map[string]bool{}
-		require := func(pkgs []string, devFlag bool) {
-			if len(pkgs) == 0 {
-				return
-			}
-			base := []string{ComposerPhar(), "require", "--no-interaction", "-W"}
-			if devFlag {
-				base = append(base, "--dev")
-			}
-			if runPHP(inst, target, r, append(base, pkgs...)...) == nil {
-				for _, p := range pkgs {
-					installed[p] = true
-				}
-				return
-			}
-			// One bad package fails the whole batch: retry one by one so the
-			// good ones still get installed.
-			if len(pkgs) == 1 {
-				warn("couldn't install %s (check the name and version constraints)", pkgs[0])
-				return
-			}
-			fmt.Fprintln(r, "retrying packages one by one")
-			for _, p := range pkgs {
-				if runPHP(inst, target, r, append(slices.Clone(base), p)...) == nil {
-					installed[p] = true
-				} else {
-					warn("couldn't install %s (check the name and version constraints)", p)
-				}
-			}
-		}
-		require(prod, false)
-		require(dev, true)
-		for _, name := range o.Packages {
-			if !installed[name] {
-				continue
-			}
-			p, ok := findPackage(name)
-			if !ok {
-				continue
-			}
-			for _, post := range p.Post {
-				if err := runPHP(inst, target, r, append([]string{"artisan"}, post...)...); err != nil {
-					warn("%s: `php artisan %s` failed, run it yourself later", p.Title, strings.Join(post, " "))
-				}
-			}
-		}
-		if slices.Contains(dev, "pestphp/pest") {
-			if err := runPHP(inst, target, r, filepath.Join("vendor", "bin", "pest"), "--init"); err != nil {
-				warn("pest --init failed")
-			}
-		}
+		_, warns := InstallPackages(inst, target, o.Packages, r)
+		w.list = append(w.list, warns...)
 	}
 
 	// 5. Migrations.
 	step("migrate", "Running migrations")
-	if err := runPHP(inst, target, r, "artisan", "migrate", "--force", "--no-interaction"); err != nil {
-		warn("migrations failed: check your database settings in .env")
-	}
+	migrate(inst, target, w, r)
 
 	// 6. Frontend build.
 	if o.NPM && kit.Frontend && fileExists(filepath.Join(target, "package.json")) {
 		step("npm", "Installing frontend dependencies")
-		if bin := NodeBinDir(); bin == "" {
-			warn("Node.js isn't installed: install it from Tools, then run npm install && npm run build")
-		} else {
-			npm := filepath.Join(bin, "npm")
-			if err := runTool(target, r, bin, npm, "install", "--no-audit", "--no-fund"); err != nil {
-				warn("npm install failed")
-			} else if err := runTool(target, r, bin, npm, "run", "build"); err != nil {
-				warn("npm run build failed")
-			}
-		}
+		buildFrontend(target, w, r)
 	}
 
 	// 7. Git.
 	if o.Git {
 		step("git", "Creating the first commit")
-		if _, err := exec.LookPath("git"); err != nil {
-			warn("Git isn't installed: install it from Tools")
-		} else if !fileExists(filepath.Join(target, ".git")) {
-			gitArgs := []string{}
-			if out, _ := exec.Command("git", "config", "--global", "user.email").Output(); len(strings.TrimSpace(string(out))) == 0 {
-				gitArgs = []string{"-c", "user.name=LaraMonster", "-c", "user.email=laramonster@localhost"}
-			}
-			_ = runTool(target, r, "", "git", "init", "-q", "-b", "main")
-			_ = runTool(target, r, "", "git", "add", "-A")
-			if err := runTool(target, r, "", "git", append(gitArgs, "commit", "-q", "-m", "Initial commit (created with LaraMonster)")...); err != nil {
-				warn("git commit failed")
-			}
-		}
+		firstCommit(target, w, r)
 	}
 
 	r.Set(1, "done")
 	fmt.Fprintf(r, "created %s → %s", target, url)
-	return target, warnings, nil
+	return target, w.list, nil
 }
 
 var validPackage = regexp.MustCompile(`^[a-z0-9]([_.-]?[a-z0-9]+)*/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$`)

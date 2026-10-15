@@ -112,6 +112,9 @@ type State struct {
 	Env         string `json:"env"`
 	Hint        string `json:"hint,omitempty"`
 	Error       string `json:"error,omitempty"`
+	// PortBusy: the service is stopped and something else (often a system
+	// MySQL/Redis) answers on its port.
+	PortBusy bool `json:"port_busy,omitempty"`
 }
 
 type proc struct {
@@ -170,6 +173,7 @@ func (m *Manager) State(d *Def, port int, enabled bool) State {
 	if p, ok := m.procs[d.Name]; ok && !p.exited() {
 		st.Running = true
 	}
+	st.PortBusy = !st.Running && st.Installed && portInUse(port)
 	return st
 }
 
@@ -308,6 +312,22 @@ func (p *proc) stop() {
 }
 
 // --- helpers ---
+
+// PortInUse reports whether something listens on 127.0.0.1:port.
+func PortInUse(port int) bool { return portInUse(port) }
+
+// FreePort is the first port after port that nothing listens on.
+func FreePort(port int) (int, error) {
+	for p := port + 1; p < port+100 && p < 65536; p++ {
+		if !portInUse(p) {
+			if l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p)); err == nil {
+				l.Close()
+				return p, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("no free port near %d", port)
+}
 
 func portInUse(port int) bool {
 	c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond)

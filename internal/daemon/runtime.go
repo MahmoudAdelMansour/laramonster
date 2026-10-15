@@ -34,6 +34,7 @@ type Runtime struct {
 	jobs     *core.Jobs
 	sites    []sites.Site
 	installs []php.Install
+	broken   []php.Broken // installed by LaraMonster but not starting
 	warnings []string
 	ready    atomic.Bool // set once the first reload has finished
 	ports    []int       // ports Caddy currently listens on
@@ -160,7 +161,7 @@ func (r *Runtime) Reload() error {
 	if err := server.Apply(caddyfile); err != nil {
 		return err
 	}
-	r.sites, r.installs = list, installs
+	r.sites, r.installs, r.broken = list, installs, php.FindBroken(installs)
 	r.ports = []int{cfg.HTTPPort, cfg.HTTPSPort}
 	r.warnings = slices.Compact(warnings)
 	for _, w := range r.warnings {
@@ -221,6 +222,7 @@ type Status struct {
 	Pro          bool             `json:"pro"` // LaraMonster Pro features are available
 	Sites        []sites.Site     `json:"sites"`
 	PHP          []php.Install    `json:"php"`
+	PHPBroken    []php.Broken     `json:"php_broken"`
 	Pools        []string         `json:"pools"`
 	Services     []services.State `json:"services"`
 	DNS          dns.Status       `json:"dns"`
@@ -238,6 +240,7 @@ func (r *Runtime) Status() Status {
 	r.mu.Lock()
 	list := slices.Clone(r.sites)
 	installs := slices.Clone(r.installs)
+	broken := slices.Clone(r.broken)
 	warnings := slices.Clone(r.warnings)
 	r.mu.Unlock()
 
@@ -253,12 +256,16 @@ func (r *Runtime) Status() Status {
 		Pro:       r.acct.Pro(),
 		Sites:     r.withHealth(list),
 		PHP:       installs,
+		PHPBroken: broken,
 		Pools:     r.fpm.Versions(),
 		DNS:       dns.Check(cfg.TLD, core.HostNames(cfg.TLD, list)),
 		TLS:       r.tlsStatus(),
 		Mail:      r.mailStatus(),
 		Warnings:  warnings,
 		Jobs:      r.jobs.Snapshot(),
+	}
+	if st.PHPBroken == nil {
+		st.PHPBroken = []php.Broken{}
 	}
 	if st.Warnings == nil {
 		st.Warnings = []string{}

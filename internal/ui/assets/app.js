@@ -183,6 +183,11 @@ document.addEventListener('alpine:init', () => {
     catalog: { kits: [], packages: [], categories: [] },
     pk: { q: '', cat: 'Recommended', results: [], top: [], loading: false, error: '' },
     wizard: { open: false, step: 0, maxStep: 0, touched: false, domainEdited: false, submitting: false, job: null, f: blankProject() },
+    // The job log under a running job stays as the person left it.
+    logOpen: storeGet('lm.logOpen', '') === '1',
+    // Packages tab of the site panel: { installed, php, sel, job } for panel.name.
+    sitePk: { loading: false, error: '', installed: [], php: null, sel: [], job: null },
+    fixJobs: {}, // warning key → job id of its one-click fix
     wizardSteps: ['Name & domain', 'Stack', 'Packages', 'Review'],
     progressStages: STAGES,
     nav: [],
@@ -284,10 +289,12 @@ document.addEventListener('alpine:init', () => {
       for (const j of st.jobs) {
         if (j.done && !this.seenJobs[j.id] && !first) {
           const failed = !!j.error;
+          if (failed && this.wizard.open && this.wizard.job === j.id) this.logOpen = true; // show why, without remembering it
           if (!(this.wizard.open && this.wizard.job === j.id)) {
             this.toast(failed ? j.title + ' failed: ' + j.error : j.title + ' — done', failed ? 'err' : 'ok');
           }
-          if (j.title.startsWith('Install PHP')) this.loadAvailable(true);
+          if (j.title.startsWith('Install PHP') || j.title === 'Install the Visual C++ runtime') this.loadAvailable(true);
+          if (j.id === this.sitePk.job && this.panel.open) this.loadSitePackages();
           if (j.title.startsWith('Install') || j.title === 'Set up Mail') this.loadTools();
           if (j.title === 'Set up Mail') this.loadMail();
         }
@@ -343,6 +350,8 @@ document.addEventListener('alpine:init', () => {
     runningServices() { return this.s ? this.s.services.filter(x => x.running).length : 0; },
     sitesOn(v) { return this.s.sites.filter(x => x.php === v).length; },
     serviceInstalled(name) { return !!this.s?.services.find(x => x.name === name)?.installed; },
+    // Stopped, with another server (the system's own MySQL, Redis…) on its port.
+    svcBusyPort(name) { const x = this.s?.services.find(x => x.name === name); return x?.port_busy ? x.port : 0; },
     nodeInstalled() { return !!this.tools.find(t => t.id === 'node')?.installed; },
     // Laravel projects first (by default), then by name.
     sortedSites() {
@@ -378,7 +387,9 @@ document.addEventListener('alpine:init', () => {
     openSitePanel(site, tab) {
       this.panel = { open: true, name: site.name, tab: tab || 'general', addr: site.name, mode: site.proxy ? 'proxy' : 'php', target: site.proxy || '', busy: '' };
       this.env = { ...this.env, file: null, lines: [], view: 'vars', q: '', raw: '', reveal: {}, newKey: '', newVal: '', adding: false };
+      this.sitePk = { loading: false, error: '', installed: [], php: null, sel: [], job: null };
       if (this.panel.tab === 'env') this.loadEnv();
+      if (this.panel.tab === 'packages') this.loadSitePackages();
     },
     closeSitePanel() {
       if (this.envDirty() && !confirmSafe('Discard your unsaved .env changes?')) return;
@@ -387,6 +398,7 @@ document.addEventListener('alpine:init', () => {
     setPanelTab(tab) {
       this.panel.tab = tab;
       if (tab === 'env' && !this.env.file) this.loadEnv();
+      if (tab === 'packages' && !this.sitePk.php && !this.sitePk.loading) this.loadSitePackages();
     },
     addrSuffix(site) { return site.url.split('://')[1].slice(site.name.length); },
     async saveAddress() {
@@ -593,6 +605,7 @@ document.addEventListener('alpine:init', () => {
       catch (e) { this.availableError = 'Couldn’t load versions: ' + e.message; }
       finally { this.availableLoading = false; }
     },
+    installVCRedist() { this.act(api('POST', '/php/vcredist'), 'Downloading the Visual C++ runtime… Windows will ask for permission.'); },
     installPHP(version) { this.act(api('POST', '/php/install', { version }), 'Installing PHP ' + version + '…'); },
     async uninstallPHP(version) {
       if (!confirmSafe('Uninstall PHP ' + version + '?')) return;
@@ -1226,10 +1239,41 @@ document.addEventListener('alpine:init', () => {
       if (f.git) on.push('Git');
       return on.join(', ') || 'Nothing extra';
     },
+    // The package picker serves the wizard and the site panel's Packages tab.
+    pkSel() { return this.panel.open && this.panel.tab === 'packages' ? this.sitePk.sel : this.wizard.f.packages; },
+    pkPHP() { return this.panel.open && this.panel.tab === 'packages' ? this.sitePk.php : this.wizardPHP(); },
+    // Entries may carry a version: "vendor/name:^2.0".
+    pkIndex(name) { return this.pkSel().findIndex(x => x === name || x.startsWith(name + ':')); },
+    pkOn(name) { return this.pkIndex(name) >= 0; },
+    pkInstalled(name) { return this.panel.open && this.panel.tab === 'packages' && this.sitePk.installed.includes(name); },
     togglePkg(name) {
-      const list = this.wizard.f.packages;
-      const i = list.indexOf(name);
+      if (this.pkInstalled(name)) return;
+      const list = this.pkSel();
+      const i = this.pkIndex(name.split(':')[0]);
       if (i >= 0) list.splice(i, 1); else list.push(name);
+    },
+    // The PHP extension a package can't run without that the chosen PHP lacks.
+    pkMissingExt(p) {
+      const php = this.pkPHP();
+      if (!php?.exts?.length) return '';
+      return (p.ext || []).find(e => !php.exts.includes(e)) || '';
+    },
+    // A name typed into the search box ("vendor/name" or "vendor/name:^2.0")
+    // can be added as it is, even when Packagist search doesn't list it.
+    typedPkg() {
+      const q = this.pk.q.trim();
+      const m = q.match(/^([a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*)(:\s*[0-9A-Za-z.*^~|<>=!@, -]{1,64})?$/i);
+      if (!m) return null;
+      const name = m[1].toLowerCase(), version = (m[5] || '').slice(1).trim();
+      return { name, version, arg: version ? name + ':' + version : name };
+    },
+    addTypedPkg() {
+      const t = this.typedPkg();
+      if (!t || this.pkInstalled(t.name)) return;
+      const list = this.pkSel(), i = this.pkIndex(t.name);
+      if (i >= 0) list.splice(i, 1, t.arg); else list.push(t.arg);
+      this.pk.q = '';
+      this.pk.results = [];
     },
     catCount(c) {
       if (c === 'Top on Packagist') return '';
@@ -1269,6 +1313,60 @@ document.addEventListener('alpine:init', () => {
       finally { this.wizard.submitting = false; }
     },
     currentJob() { return (this.s?.jobs || []).find(j => j.id === this.wizard.job); },
+    setLogOpen(open) { this.logOpen = open; storeSet('lm.logOpen', open ? '1' : ''); },
+    // Warnings of a finished job; older engines sent plain strings.
+    jobWarnings(j) { return (j?.result?.warnings || []).map(w => typeof w === 'string' ? { message: w } : w); },
+    fixKey(site, w) { return site + '|' + w.message; },
+    fixJob(site, w) { const id = this.fixJobs[this.fixKey(site, w)]; return id ? (this.s?.jobs || []).find(j => j.id === id) : null; },
+    // fixed, failed, running, or '' (not tried)
+    fixState(site, w) {
+      const j = this.fixJob(site, w);
+      if (!j) return '';
+      if (!j.done) return 'running';
+      return j.error || this.jobWarnings(j).length ? 'failed' : 'fixed';
+    },
+    fixError(site, w) {
+      const j = this.fixJob(site, w);
+      if (!j?.done) return '';
+      return j.error || this.jobWarnings(j).map(x => x.message + (x.detail ? '\n' + x.detail : '')).join('\n');
+    },
+    async runFix(site, w) {
+      try {
+        const job = await api('POST', '/projects/fix', { name: site, fix: w.fix });
+        this.fixJobs = { ...this.fixJobs, [this.fixKey(site, w)]: job.id };
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    wizardSite() { return this.slug(this.wizard.f.domain || this.wizard.f.name); },
+
+    // ---------- packages of an existing project ----------
+    async loadSitePackages() {
+      const name = this.panel.name;
+      this.sitePk.loading = true;
+      this.sitePk.error = '';
+      this.pk = { q: '', cat: 'Recommended', results: [], top: this.pk.top || [], loading: false, error: '' };
+      try {
+        if (!this.catalog.kits.length) this.catalog = await api('GET', '/projects/catalog');
+        const r = await api('GET', '/sites/packages?name=' + encodeURIComponent(name));
+        if (this.panel.name !== name) return;
+        this.sitePk.installed = r.installed || [];
+        this.sitePk.php = r.php;
+      } catch (e) { this.sitePk.error = e.message; }
+      finally { this.sitePk.loading = false; }
+    },
+    sitePkJob() { return this.sitePk.job ? (this.s?.jobs || []).find(j => j.id === this.sitePk.job) : null; },
+    async installSitePackages() {
+      try {
+        const job = await api('POST', '/sites/packages', { name: this.panel.name, packages: this.sitePk.sel });
+        this.sitePk.job = job.id;
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    sitePkDone() {
+      this.sitePk.sel = [];
+      this.sitePk.job = null;
+      this.loadSitePackages();
+    },
     stageState(i) {
       const j = this.currentJob();
       if (!j) return '';

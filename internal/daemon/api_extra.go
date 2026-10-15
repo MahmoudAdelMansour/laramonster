@@ -63,6 +63,91 @@ func (rt *Runtime) registerExtra(handle func(string, apiFunc), mux *http.ServeMu
 		return packagist("https://packagist.org/search.json?per_page=20&q=" + url.QueryEscape(q))
 	})
 
+	// --- packages in an existing project ---
+	handle("GET /api/sites/packages", func(r *http.Request) (any, error) {
+		s, err := findSite(r.URL.Query().Get("name"))
+		if err != nil {
+			return nil, err
+		}
+		dir, err := core.ProjectDir(s.Path)
+		if err != nil {
+			return nil, err
+		}
+		installed, err := core.ComposerPackages(dir)
+		if err != nil {
+			return nil, err
+		}
+		inst, err := core.PHPFor(dir)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"installed": installed, "php": inst}, nil
+	})
+	handle("POST /api/sites/packages", func(r *http.Request) (any, error) {
+		var b struct {
+			Name     string   `json:"name"`
+			Packages []string `json:"packages"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&b); err != nil {
+			return nil, err
+		}
+		if len(b.Packages) == 0 {
+			return nil, errors.New("choose at least one package")
+		}
+		s, err := findSite(b.Name)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := core.ProjectDir(s.Path)
+		if err != nil {
+			return nil, err
+		}
+		title := "Install packages in " + s.Name
+		if rt.jobs.Busy(title) {
+			return nil, errors.New(title + " is already running")
+		}
+		return rt.jobs.Run(title, func(j *core.Job) error {
+			inst, err := core.PHPFor(dir)
+			if err != nil {
+				return err
+			}
+			j.Set(-1, "Installing "+strings.Join(b.Packages, ", "))
+			installed, warnings := core.InstallPackages(inst, dir, b.Packages, j)
+			j.SetResult(map[string]any{"path": dir, "site": s.Name, "installed": installed, "warnings": warnings})
+			if len(installed) == 0 {
+				return errors.New("no package was installed: see the warnings")
+			}
+			j.Set(1, fmt.Sprintf("installed %d package(s)", len(installed)))
+			return nil
+		}, nil), nil
+	})
+	// A warning's one-click fix (create the database, run migrations again…).
+	handle("POST /api/projects/fix", func(r *http.Request) (any, error) {
+		var b struct {
+			Name string   `json:"name"`
+			Fix  core.Fix `json:"fix"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&b); err != nil {
+			return nil, err
+		}
+		s, err := findSite(b.Name)
+		if err != nil {
+			return nil, err
+		}
+		title := b.Fix.Label + " (" + s.Name + ")"
+		if rt.jobs.Busy(title) {
+			return nil, errors.New(title + " is already running")
+		}
+		return rt.jobs.Run(title, func(j *core.Job) error {
+			warnings, err := core.RunFix(s.Path, b.Fix, rt.projectEnv(), j)
+			j.SetResult(map[string]any{"path": s.Path, "site": s.Name, "warnings": warnings})
+			if err == nil && len(warnings) > 0 {
+				j.Set(1, fmt.Sprintf("finished with %d warning(s)", len(warnings)))
+			}
+			return err
+		}, rt.reloadQuiet), nil
+	})
+
 	// --- tools ---
 	handle("GET /api/tools", func(r *http.Request) (any, error) {
 		if r.URL.Query().Get("fresh") != "" {
@@ -209,6 +294,18 @@ func (rt *Runtime) projectEnv() core.Env {
 				}
 			}
 			port := sc.Port
+			// Another server (often the system's own MySQL or Redis) holds
+			// the port: run LaraMonster's copy next to it instead of failing.
+			if !rt.svc.Running(d.Name) && services.PortInUse(port) {
+				free, err := services.FreePort(port)
+				if err != nil {
+					return 0, fmt.Errorf("port %d is used by another %s and %v", port, d.Title, err)
+				}
+				sc.Port, port = free, free
+				if err := cfg.Save(); err != nil {
+					return 0, err
+				}
+			}
 			if err := rt.svc.Start(d, port); err != nil {
 				return 0, err
 			}

@@ -24,6 +24,7 @@ type Install struct {
 	Managed bool     `json:"managed"` // installed by LaraMonster
 	IniDir  string   `json:"ini_dir"` // directory with php.ini (PHPRC) for managed installs
 	PDO     []string `json:"pdo"`     // available PDO drivers: sqlite, mysql, pgsql…
+	Exts    []string `json:"exts"`    // loaded extensions, lower case: intl, redis…
 }
 
 // Env returns the environment needed to run this PHP with its own php.ini.
@@ -93,8 +94,12 @@ func Discover() []Install {
 	return out
 }
 
+// probeTimeout: Windows Defender scans a freshly downloaded php-cgi.exe on
+// its first start, which can take well over 5 seconds.
+var probeTimeout = map[bool]time.Duration{true: 30 * time.Second, false: 5 * time.Second}[runtime.GOOS == "windows"]
+
 func probe(fpm string) (Install, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, fpm, "-v").Output()
 	if err != nil {
@@ -114,7 +119,7 @@ func probe(fpm string) (Install, bool) {
 		inst.Managed = true
 		inst.IniDir = filepath.Dir(fpm)
 	}
-	inst.PDO = pdoDrivers(inst)
+	inst.PDO, inst.Exts = extensions(inst)
 	return inst, true
 }
 
@@ -189,21 +194,33 @@ func compare(a, b string) int {
 	return len(pa) - len(pb)
 }
 
-func pdoDrivers(i Install) []string {
+// extensions asks the CLI for its PDO drivers and loaded extensions.
+func extensions(i Install) (pdo, exts []string) {
 	if i.CLI == "" {
-		return nil
+		return nil, nil
 	}
-	cmd := exec.Command(i.CLI, "-r", "echo class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : '';")
+	cmd := exec.Command(i.CLI, "-r", "echo (class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : ''), '|', strtolower(implode(',', get_loaded_extensions()));")
 	cmd.Env = append(os.Environ(), i.Env()...)
 	out, err := cmd.Output()
-	if err != nil || len(out) == 0 {
+	if err != nil {
+		return []string{}, []string{}
+	}
+	a, b, _ := strings.Cut(string(out), "|")
+	return split(a), split(b)
+}
+
+func split(s string) []string {
+	if s == "" {
 		return []string{}
 	}
-	return strings.Split(string(out), ",")
+	return strings.Split(s, ",")
 }
 
 // HasExtension reports whether the PHP CLI has an extension loaded.
 func (i Install) HasExtension(name string) bool {
+	if i.Exts != nil {
+		return slices.Contains(i.Exts, strings.ToLower(name))
+	}
 	if i.CLI == "" {
 		return false
 	}

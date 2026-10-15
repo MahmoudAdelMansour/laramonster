@@ -20,15 +20,22 @@ type Release struct {
 	Full      string `json:"full"`    // "8.4.23"
 	Installed bool   `json:"installed"`
 	urls      []string
-	sha256    string
+	sha256    string   // one archive (Windows)
+	sums      []string // one per url (own builds); "" = unchecked
 }
 
 const (
 	// "common" includes pdo_sqlite/pdo_pgsql (Laravel defaults); "bulk" swaps
-	// them for Swoole hooks. It lacks intl, sodium and opcache.
+	// them for Swoole hooks. It lacks intl and sodium, so it's only the
+	// fallback for ownBuilds.
 	staticBase  = "https://dl.static-php.dev/static-php-cli/common/"
 	windowsBase = "https://windows.php.net/downloads/releases/"
 )
+
+// OwnBuilds is the GitHub release with LaraMonster's own static PHP builds
+// (.github/workflows/php-builds.yml): the common extensions plus intl and
+// sodium, named like static-php.dev's files.
+var OwnBuilds = "https://api.github.com/repos/MahmoudAdelMansour/laramonster/releases/tags/php-builds"
 
 // Available lists the newest patch release of each minor version.
 func Available() ([]Release, error) {
@@ -40,6 +47,19 @@ func Available() ([]Release, error) {
 		list, err = windowsReleases()
 	} else {
 		list, err = staticReleases()
+		// Prefer our builds (with intl) for every version they cover.
+		if own, ownErr := ownReleases(); ownErr == nil {
+			for _, o := range own {
+				if i := slices.IndexFunc(list, func(r Release) bool { return r.Version == o.Version }); i >= 0 {
+					list[i] = o
+				} else {
+					list = append(list, o)
+				}
+			}
+			err = nil
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -116,6 +136,73 @@ func staticReleases() ([]Release, error) {
 	return out, nil
 }
 
+// ownReleases lists the newest patch of each minor version in OwnBuilds.
+func ownReleases() ([]Release, error) {
+	platform, err := staticPlatform()
+	if err != nil {
+		return nil, err
+	}
+	var rel struct {
+		Assets []struct {
+			Name   string `json:"name"`
+			URL    string `json:"browser_download_url"`
+			Digest string `json:"digest"` // "sha256:…"
+		} `json:"assets"`
+	}
+	if err := fetch.GetJSON(OwnBuilds, &rel); err != nil {
+		return nil, err
+	}
+	type file struct{ url, sum string }
+	type build struct {
+		patch int
+		cli   file
+		fpm   file
+	}
+	// minor -> patch -> files
+	have := map[string]map[int]*build{}
+	for _, a := range rel.Assets {
+		m := staticName.FindStringSubmatch(a.Name)
+		if m == nil || m[4] != platform {
+			continue
+		}
+		var patch int
+		fmt.Sscan(m[2], &patch)
+		if have[m[1]] == nil {
+			have[m[1]] = map[int]*build{}
+		}
+		b := have[m[1]][patch]
+		if b == nil {
+			b = &build{patch: patch}
+			have[m[1]][patch] = b
+		}
+		f := file{url: a.URL, sum: strings.TrimPrefix(a.Digest, "sha256:")}
+		if m[3] == "cli" {
+			b.cli = f
+		} else {
+			b.fpm = f
+		}
+	}
+	var out []Release
+	for minor, patches := range have {
+		var best *build
+		for _, b := range patches {
+			if b.cli.url != "" && b.fpm.url != "" && (best == nil || b.patch > best.patch) {
+				best = b
+			}
+		}
+		if best == nil {
+			continue
+		}
+		out = append(out, Release{
+			Version: minor,
+			Full:    fmt.Sprintf("%s.%d", minor, best.patch),
+			urls:    []string{best.cli.url, best.fpm.url},
+			sums:    []string{best.cli.sum, best.fpm.sum},
+		})
+	}
+	return out, nil
+}
+
 func windowsReleases() ([]Release, error) {
 	var index map[string]map[string]json.RawMessage
 	if err := fetch.GetJSON(windowsBase+"releases.json", &index); err != nil {
@@ -180,9 +267,13 @@ func InstallVersion(version string, progress fetch.Progress) (Release, error) {
 
 	// Spread progress over all archives of this release.
 	var base int64
-	for _, url := range rel.urls {
+	for i, url := range rel.urls {
 		archive := filepath.Join(tmp, filepath.Base(url))
-		n, err := fetch.Download(url, archive, rel.sha256, func(done, total int64) {
+		sum := rel.sha256
+		if i < len(rel.sums) {
+			sum = rel.sums[i]
+		}
+		n, err := fetch.Download(url, archive, sum, func(done, total int64) {
 			if progress != nil {
 				progress(base+done, -1)
 			}

@@ -1,0 +1,85 @@
+# Builds the PHP that LaraMonster installs on Linux and macOS (Actions → PHP
+# builds → Run workflow). static-php.dev's ready-made "common" builds lack
+# intl (Filament and many packages need it) and its "bulk" builds lack
+# pdo_sqlite, so we build our own with static-php-cli: the common extensions
+# plus intl and sodium. Files keep static-php.dev's names and go to the
+# "php-builds" release of this repository, where internal/php looks first.
+#
+# Windows uses windows.php.net, whose builds already include intl.
+name: PHP builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: PHP versions (JSON list)
+        default: '["8.2", "8.3", "8.4", "8.5"]'
+
+permissions:
+  contents: write
+
+env:
+  # Every extension LaraMonster's PHP had before, plus intl and sodium.
+  EXTENSIONS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,intl,mbstring,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+  SPC: https://dl.static-php.dev/static-php-cli/spc-bin/nightly
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(inputs.versions) }}
+        target:
+          - { runner: ubuntu-24.04, platform: linux-x86_64, spc: spc-linux-x86_64 }
+          - { runner: ubuntu-24.04-arm, platform: linux-aarch64, spc: spc-linux-aarch64 }
+          - { runner: macos-14, platform: macos-aarch64, spc: spc-macos-aarch64 }
+          - { runner: macos-15-intel, platform: macos-x86_64, spc: spc-macos-x86_64 }
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 120
+    steps:
+      - name: static-php-cli
+        run: |
+          curl -fsSL -o spc "$SPC/${{ matrix.target.spc }}"
+          chmod +x spc
+          ./spc --version
+          ./spc doctor --auto-fix
+      - name: Download sources
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./spc download --with-php=${{ matrix.php }} --for-extensions="$EXTENSIONS" --prefer-pre-built --retry=3
+      - name: Build cli + fpm
+        run: ./spc build "$EXTENSIONS" --build-cli --build-fpm
+      - name: Check and package
+        run: |
+          bin=buildroot/bin
+          $bin/php -v
+          for ext in intl pdo_sqlite pdo_mysql pdo_pgsql sodium redis mbstring openssl; do
+            $bin/php -r "extension_loaded('$ext') || exit(1);" || { echo "missing $ext"; exit 1; }
+          done
+          $bin/php-fpm -v
+          full=$($bin/php -r 'echo PHP_VERSION;')
+          mkdir -p out
+          tar -czf out/php-$full-cli-${{ matrix.target.platform }}.tar.gz -C $bin php
+          tar -czf out/php-$full-fpm-${{ matrix.target.platform }}.tar.gz -C $bin php-fpm
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-${{ matrix.php }}-${{ matrix.target.platform }}
+          path: out/
+
+  publish:
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Upload to the php-builds release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l out
+          gh release view php-builds >/dev/null 2>&1 || gh release create php-builds --prerelease --title "PHP builds" \
+            --notes "PHP for LaraMonster on Linux and macOS: static-php-cli builds with intl and sodium. Installed by LaraMonster; not meant for direct download."
+          gh release upload php-builds out/*.tar.gz --clobber

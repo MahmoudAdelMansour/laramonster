@@ -8,8 +8,10 @@ type Package struct {
 	Category    string     `json:"category"`
 	Dev         bool       `json:"dev"`
 	Recommended bool       `json:"recommended,omitempty"`
-	Needs       string     `json:"needs,omitempty"` // "redis", "meilisearch"…
-	Post        [][]string `json:"-"`               // artisan commands run after install
+	Needs       string     `json:"needs,omitempty"`   // "redis", "meilisearch"…
+	Ext         []string   `json:"ext,omitempty"`     // PHP extensions it can't run without
+	Version     string     `json:"version,omitempty"` // constraint, so a missing requirement fails instead of picking an ancient release
+	Post        [][]string `json:"-"`                 // artisan commands run after install
 }
 
 // Categories in display order.
@@ -32,7 +34,7 @@ var Packages = []Package{
 		Description: "Facade and config for the OpenAI API.", Post: [][]string{{"openai:install", "--no-interaction"}}},
 
 	// Admin & UI
-	{Name: "filament/filament", Title: "Filament", Category: "Admin & UI", Recommended: true,
+	{Name: "filament/filament", Title: "Filament", Category: "Admin & UI", Recommended: true, Ext: []string{"intl"}, Version: "^5.0",
 		Description: "Admin panels, forms and tables built on Livewire.",
 		Post:        [][]string{{"filament:install", "--panels", "--no-interaction"}}},
 	{Name: "livewire/livewire", Title: "Livewire", Category: "Admin & UI",

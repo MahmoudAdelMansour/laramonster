@@ -18,6 +18,7 @@ import (
 	"laramonster/internal/core"
 	"laramonster/internal/dns"
 	"laramonster/internal/elevate"
+	"laramonster/internal/fetch"
 	"laramonster/internal/paths"
 	"laramonster/internal/php"
 	"laramonster/internal/services"
@@ -123,6 +124,32 @@ func (rt *Runtime) Handler(stop func()) http.Handler {
 				fmt.Fprintf(j, "installed PHP %s", rel.Full)
 			}
 			return err
+		}, rt.reloadQuiet), nil
+	})
+	// Windows: PHP needs Microsoft's Visual C++ runtime. Its installer asks
+	// for administrator rights itself.
+	handle("POST /api/php/vcredist", func(*http.Request) (any, error) {
+		if runtime.GOOS != "windows" {
+			return nil, errors.New("only Windows needs the Visual C++ runtime")
+		}
+		title := "Install the Visual C++ runtime"
+		if rt.jobs.Busy(title) {
+			return nil, errors.New(title + " is already running")
+		}
+		return rt.jobs.Run(title, func(j *core.Job) error {
+			exe := filepath.Join(os.TempDir(), "laramonster-vc_redist.x64.exe")
+			defer os.Remove(exe)
+			fmt.Fprintln(j, "downloading "+php.VCRedistURL)
+			if _, err := fetch.Download(php.VCRedistURL, exe, "", j.Bytes); err != nil {
+				return fmt.Errorf("couldn't download the Visual C++ runtime: %w", err)
+			}
+			j.Set(-1, "Installing (Windows asks for permission)")
+			script := "$p = Start-Process -FilePath '" + strings.ReplaceAll(exe, "'", "''") + "' -ArgumentList '/install','/passive','/norestart' -Wait -PassThru; exit $p.ExitCode"
+			if err := elevate.RunTo(script, j); err != nil {
+				return fmt.Errorf("the Visual C++ runtime wasn't installed: %w", err)
+			}
+			fmt.Fprintln(j, "Visual C++ runtime installed")
+			return nil
 		}, rt.reloadQuiet), nil
 	})
 	handle("POST /api/php/uninstall", rt.mutating(func(b body) error { return php.Uninstall(b.str("version")) }))

@@ -410,6 +410,21 @@
         <div class="actions"><button class="btn btn-ghost" @click="loadAvailable(true)" :disabled="availableLoading"><svg class="i" :class="{ spin: availableLoading }"><use href="#i-refresh"/></svg> Refresh list</button></div>
       </div>
 
+      <template x-for="b in s.php_broken || []" :key="b.version">
+        <div class="alert error" style="margin-bottom:16px">
+          <svg class="i"><use href="#i-alert"/></svg>
+          <div class="grow">
+            <b x-text="'PHP ' + b.version + ' is installed but doesn’t start'"></b>
+            <div class="small" x-text="b.reason"></div>
+            <div class="small muted" x-show="b.vc_redist" style="margin-top:4px">PHP for Windows is built with Microsoft Visual C++ and needs its free runtime once. LaraMonster can install it for you (Windows asks for permission), then PHP works without reinstalling.</div>
+            <div class="actions" style="margin-top:10px">
+              <button class="btn btn-sm" x-show="b.vc_redist" :disabled="jobBusy('Install the Visual C++ runtime')" @click="installVCRedist()"><svg class="i"><use href="#i-download"/></svg> Install the Visual C++ runtime</button>
+              <a class="btn btn-sm btn-ghost" x-show="b.vc_redist" href="https://aka.ms/vs/17/release/vc_redist.x64.exe" target="_blank" rel="noopener">Download it yourself</a>
+              <button class="btn btn-sm btn-ghost" :disabled="jobBusy('Install PHP ' + b.version)" @click="installPHP(b.version)">Reinstall PHP <span x-text="b.version"></span></button>
+            </div>
+          </div>
+        </div>
+      </template>
       <div class="card" style="margin-bottom:16px">
         <div class="card-head"><h2>Installed</h2><span class="sub">The default version serves every site that isn't pinned</span></div>
         <template x-for="p in s.php" :key="p.fpm">
@@ -425,8 +440,10 @@
               </div>
               <div class="small muted mono ellipsis" x-text="p.fpm"></div>
               <div class="small muted" x-text="sitesOn(p.version) + ' site(s)'"></div>
+              <div class="small" style="color:var(--warn-text);font-weight:600" x-show="p.managed && p.exts?.length && !p.exts.includes('intl')">This build has no intl extension (Filament and other packages need it). Update it to a build that has intl.</div>
             </div>
             <div class="actions">
+              <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !p.exts.includes('intl')" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
               <button class="btn btn-sm btn-ghost" x-show="p.version !== s.default_php" @click="setDefault(p.version)">Make default</button>
               <button class="btn btn-sm btn-danger" x-show="p.managed" @click="uninstallPHP(p.version)">Uninstall</button>
             </div>
@@ -1298,6 +1315,7 @@
       <div class="tabs" role="tablist">
         <button role="tab" :aria-selected="panel.tab === 'general'" :class="{ on: panel.tab === 'general' }" @click="setPanelTab('general')">General</button>
         <button role="tab" :aria-selected="panel.tab === 'env'" :class="{ on: panel.tab === 'env' }" @click="setPanelTab('env')">Environment <span class="count" x-show="envChangeCount()" x-text="envChangeCount()"></span></button>
+        <button role="tab" x-show="panelSite().laravel" :aria-selected="panel.tab === 'packages'" :class="{ on: panel.tab === 'packages' }" @click="setPanelTab('packages')">Packages <span class="count" x-show="sitePk.sel.length" x-text="sitePk.sel.length"></span></button>
       </div>
     </div>
 
@@ -1440,6 +1458,97 @@
       </template>
     </div>
 
+    <!-- Packages -->
+    <div class="modal-body card-pad" x-show="panel.tab === 'packages'">
+      <template x-if="sitePk.loading && !sitePk.php"><div class="stack"><div class="skeleton" style="height:44px"></div><div class="skeleton" style="height:180px"></div></div></template>
+      <div class="alert error" x-show="sitePk.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="sitePk.error"></div><button class="btn btn-link small" @click="loadSitePackages()">Try again</button></div></div>
+
+      <!-- installing -->
+      <template x-if="sitePkJob()">
+        <div class="stack">
+          <div class="bar" :class="{ indet: !sitePkJob().done }"><i :style="'width:' + (sitePkJob().done ? 100 : 30) + '%'"></i></div>
+          <div class="row" style="gap:8px"><svg class="i" :class="{ spin: !sitePkJob().done }"><use :href="sitePkJob().done ? (sitePkJob().error ? '#i-alert' : '#i-check') : '#i-loader'"/></svg>
+            <b x-text="!sitePkJob().done ? 'Installing ' + sitePk.sel.join(', ') + '…' : (sitePkJob().error ? 'Nothing was installed' : 'Installed ' + (sitePkJob().result?.installed || []).join(', '))"></b></div>
+          <div class="alert error small" x-show="sitePkJob().error"><svg class="i"><use href="#i-alert"/></svg><div x-text="sitePkJob().error"></div></div>
+          <template x-for="w in jobWarnings(sitePkJob())" :key="w.message">
+                  <div class="alert small warn-fix" :class="{ 'warn-ok': fixState(panel.name, w) === 'fixed' }">
+                    <svg class="i"><use :href="fixState(panel.name, w) === 'fixed' ? '#i-check' : '#i-alert'"/></svg>
+                    <div class="grow" style="min-width:0">
+                      <div x-text="w.message"></div>
+                      <details class="warn-why" x-show="w.detail && fixState(panel.name, w) !== 'fixed'"><summary>Why</summary><pre x-text="w.detail"></pre></details>
+                      <pre class="warn-why-out" x-show="fixState(panel.name, w) === 'failed'" x-text="'Still failing: ' + fixError(panel.name, w)"></pre>
+                    </div>
+                    <span class="badge badge-green" x-show="fixState(panel.name, w) === 'fixed'">Fixed</span>
+                    <button class="btn btn-sm" x-show="w.fix && fixState(panel.name, w) !== 'fixed'" :disabled="fixState(panel.name, w) === 'running'" @click="runFix(panel.name, w)">
+                      <svg class="i spin" x-show="fixState(panel.name, w) === 'running'"><use href="#i-loader"/></svg>
+                      <span x-text="fixState(panel.name, w) === 'running' ? 'Fixing…' : (fixState(panel.name, w) === 'failed' ? 'Try again' : w.fix?.label)"></span>
+                    </button>
+                  </div>
+                </template>
+          <details :open="logOpen" @toggle="setLogOpen($el.open)"><summary class="small muted" style="cursor:pointer">Details</summary><pre class="joblog" x-text="(sitePkJob().log || []).join('\n')"></pre></details>
+        </div>
+      </template>
+
+      <!-- choosing -->
+      <div class="stack" x-show="sitePk.php && !sitePkJob()">
+        <div class="small muted">Adds packages with <code>composer require</code> using <b x-text="'PHP ' + (sitePk.php?.full || '')"></b>, then runs their setup (e.g. <code>filament:install</code>, <code>install:api</code>). Already installed packages are ticked.</div>
+        <div class="alert info" style="align-items:center">
+          <svg class="i"><use :href="pkInstalled('laravel/boost') ? '#i-check' : '#i-sparkles'"/></svg>
+          <div class="grow" x-show="!pkInstalled('laravel/boost')"><b>Connect AI agents</b> — add Laravel Boost so Claude Code, Cursor and Copilot get Laravel guidelines and an MCP server for this app.</div>
+          <div class="grow" x-show="pkInstalled('laravel/boost')"><b>AI-ready</b> — Laravel Boost is installed: coding agents get Laravel guidelines and this app's MCP server.</div>
+          <label class="switch" x-show="!pkInstalled('laravel/boost')"><input type="checkbox" :checked="pkOn('laravel/boost')" @change="togglePkg('laravel/boost')" aria-label="Connect AI agents with Laravel Boost"><span></span></label>
+        </div>
+          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search Packagist, or type a package name (vendor/name, vendor/name:^2.0)…" x-model="pk.q" @input.debounce.400ms="searchPackages()" @keydown.enter.prevent="addTypedPkg()" aria-label="Search packages or type a package name"></div>
+          <template x-if="typedPkg()">
+            <div class="pkg-typed">
+              <svg class="i"><use href="#i-plus"/></svg>
+              <div class="grow"><b class="mono" x-text="typedPkg().name"></b><span class="small muted" x-text="typedPkg().version ? ' · version ' + typedPkg().version : ' · newest version that fits your project'"></span></div>
+              <span class="badge badge-green" x-show="pkInstalled(typedPkg().name)">Installed</span>
+              <button class="btn btn-sm" x-show="!pkInstalled(typedPkg().name)" @click="addTypedPkg()" x-text="pkOn(typedPkg().name) ? 'Update' : 'Add'"></button>
+            </div>
+          </template>
+          <div class="chips" x-show="pkSel().length">
+            <template x-for="p in pkSel()" :key="p"><span class="chip"><span x-text="p"></span><button @click="togglePkg(p)" :aria-label="'Remove ' + p"><svg class="i" style="width:12px;height:12px"><use href="#i-x"/></svg></button></span></template>
+          </div>
+          <div class="pkg-layout">
+            <div class="pkg-cats" x-show="!pk.q">
+              <template x-for="c in ['Recommended', ...catalog.categories, 'Top on Packagist']" :key="c">
+                <button :class="{ on: pk.cat === c }" @click="pk.cat = c; if (c === 'Top on Packagist') searchPackages()"><span x-text="c"></span><span class="muted" x-text="catCount(c)"></span></button>
+              </template>
+            </div>
+            <div class="pkg-list" :style="pk.q ? 'grid-column:1 / -1' : ''">
+              <template x-if="pk.loading"><div class="stack"><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div></div></template>
+              <div class="alert error" x-show="pk.error && !pk.loading"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="pk.error"></div><button class="btn btn-link small" @click="searchPackages()">Try again</button></div></div>
+              <template x-for="p in visiblePackages()" :key="p.name">
+                <button type="button" class="pkg" :class="{ on: pkOn(p.name) || pkInstalled(p.name), off: !!pkMissingExt(p) && !pkOn(p.name) }" @click="togglePkg(p.name)" :aria-pressed="pkOn(p.name)" :disabled="pkInstalled(p.name)">
+                  <span class="box" x-text="pkOn(p.name) || pkInstalled(p.name) ? '✓' : ''"></span>
+                  <span class="grow">
+                    <span class="pkg-name"><span x-text="p.title || p.name"></span>
+                      <span class="badge badge-green" x-show="pkInstalled(p.name)">Installed</span>
+                      <span class="badge badge-blue" x-show="p.recommended && !pkInstalled(p.name)">Recommended</span>
+                      <span class="badge" x-show="p.dev">dev</span>
+                      <span class="badge badge-orange" x-show="p.needs" x-text="'uses ' + p.needs"></span>
+                      <span class="badge" x-show="p.downloads" x-text="fmtNum(p.downloads) + ' installs'"></span></span>
+                    <span class="pkg-desc mono" x-show="p.title" x-text="p.name"></span>
+                    <span class="pkg-desc" style="display:block" x-text="p.description"></span>
+                    <span class="pkg-desc pkg-warn" x-show="pkMissingExt(p)" x-text="'Needs PHP’s ' + pkMissingExt(p) + ' extension, which PHP ' + (pkPHP()?.full || '') + ' doesn’t have: it will be skipped.'"></span>
+                  </span>
+                </button>
+              </template>
+              <div class="empty" x-show="!pk.loading && !pk.error && !visiblePackages().length && !typedPkg()" style="padding:24px"><h3 x-text="pk.q ? 'No packages found' : 'Nothing here'"></h3><p x-show="pk.q">Try a different word, the vendor name (e.g. “spatie”), or type the full name: vendor/name.</p></div>
+            </div>
+          </div>
+      </div>
+    </div>
+    <div class="modal-foot" x-show="panel.tab === 'packages' && (sitePk.sel.length || sitePkJob()?.done)">
+      <span class="small muted" x-show="!sitePkJob()" x-text="sitePk.sel.length + ' package' + (sitePk.sel.length === 1 ? '' : 's') + ' to install'"></span>
+      <span class="small muted" x-show="sitePkJob()?.done">Finished. You can install more.</span>
+      <div class="actions">
+        <button class="btn btn-ghost" x-show="!sitePkJob() && sitePk.sel.length" @click="sitePk.sel = []">Clear</button>
+        <button class="btn" x-show="!sitePkJob()" :disabled="!sitePk.sel.length || jobBusy('Install packages in ' + panel.name)" @click="installSitePackages()"><svg class="i"><use href="#i-download"/></svg> Install</button>
+        <button class="btn" x-show="sitePkJob()?.done" @click="sitePkDone()">Done</button>
+      </div>
+    </div>
     <div class="modal-foot" x-show="panel.tab === 'env' && env.file?.exists">
       <span class="small" :class="envDirty() ? '' : 'muted'" x-text="envDirty() ? (env.view === 'raw' ? 'Unsaved changes' : envChangeCount() + ' unsaved change' + (envChangeCount() === 1 ? '' : 's')) : 'All changes saved · ' + (env.file?.path || '')"></span>
       <div class="actions">
@@ -1584,7 +1693,8 @@
     <div class="modal-body">
       <!-- gate: no PHP -->
       <div class="card-pad" x-show="!wizard.job && s && !s.php.length">
-        <div class="alert"><svg class="i"><use href="#i-alert"/></svg><div>A project needs PHP. <a href="#php" @click="closeWizard()">Install a PHP version</a> (one click), then come back.</div></div>
+        <div class="alert" x-show="!(s.php_broken || []).length"><svg class="i"><use href="#i-alert"/></svg><div>A project needs PHP. <a href="#php" @click="closeWizard()">Install a PHP version</a> (one click), then come back.</div></div>
+        <div class="alert error" x-show="(s.php_broken || []).length"><svg class="i"><use href="#i-alert"/></svg><div><b x-text="'PHP ' + s.php_broken[0]?.version + ' is installed but doesn’t start'"></b>: <span x-text="s.php_broken[0]?.reason"></span>. <a href="#php" @click="closeWizard()">Fix it on the PHP page</a>, then come back.</div></div>
       </div>
 
       <!-- step 1: basics -->
@@ -1636,6 +1746,10 @@
             <button type="button" class="choice" :class="{ on: wizard.f.database === 'mysql' }" @click="wizard.f.database = 'mysql'" :disabled="!serviceInstalled('mysql')"><b>MySQL / MariaDB</b><small x-text="serviceInstalled('mysql') ? 'Creates a database and starts the server.' : 'Not installed: add it from Tools.'"></small></button>
             <button type="button" class="choice" :class="{ on: wizard.f.database === 'pgsql' }" @click="wizard.f.database = 'pgsql'" :disabled="!serviceInstalled('postgres')"><b>PostgreSQL</b><small x-text="serviceInstalled('postgres') ? 'Creates a database and starts the server.' : 'Not installed: add it from Tools.'"></small></button>
           </div>
+          <template x-for="db in [{ id: 'mysql', svc: 'mysql', name: 'MySQL' }, { id: 'pgsql', svc: 'postgres', name: 'PostgreSQL' }]" :key="db.id">
+            <div class="alert info small" style="margin-top:10px" x-show="wizard.f.database === db.id && svcBusyPort(db.svc)"><svg class="i"><use href="#i-info"/></svg>
+              <div>Another <span x-text="db.name"></span> server (probably your system's own) already uses port <b x-text="svcBusyPort(db.svc)"></b>. LaraMonster leaves it alone, runs its own <span x-text="db.name"></span> on the next free port and writes that port to <code>.env</code>. Nothing to do.</div></div>
+          </template>
           <div class="alert error small" style="margin-top:10px" x-show="!!dbBlocker(wizard.f.database)"><svg class="i"><use href="#i-alert"/></svg><div x-text="dbBlocker(wizard.f.database)"></div></div>
           <div class="hint" style="margin-top:8px" x-show="!serviceInstalled('mysql') || !serviceInstalled('postgres')"><a href="#tools" @click="closeWizard()">Install databases in Tools</a></div>
           <div class="section-title">Wiring</div>
@@ -1658,9 +1772,17 @@
             <div class="grow"><b>AI-ready</b> — add Laravel Boost so coding agents (Claude Code, Cursor, Copilot) get Laravel guidelines and an MCP server for this app.</div>
             <label class="switch"><input type="checkbox" :checked="wizard.f.packages.includes('laravel/boost')" @change="togglePkg('laravel/boost')" aria-label="AI-ready with Laravel Boost"><span></span></label>
           </div>
-          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search all Packagist packages…" x-model="pk.q" @input.debounce.400ms="searchPackages()" aria-label="Search packages"></div>
-          <div class="chips" x-show="wizard.f.packages.length">
-            <template x-for="p in wizard.f.packages" :key="p"><span class="chip"><span x-text="p"></span><button @click="togglePkg(p)" :aria-label="'Remove ' + p"><svg class="i" style="width:12px;height:12px"><use href="#i-x"/></svg></button></span></template>
+          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search Packagist, or type a package name (vendor/name, vendor/name:^2.0)…" x-model="pk.q" @input.debounce.400ms="searchPackages()" @keydown.enter.prevent="addTypedPkg()" aria-label="Search packages or type a package name"></div>
+          <template x-if="typedPkg()">
+            <div class="pkg-typed">
+              <svg class="i"><use href="#i-plus"/></svg>
+              <div class="grow"><b class="mono" x-text="typedPkg().name"></b><span class="small muted" x-text="typedPkg().version ? ' · version ' + typedPkg().version : ' · newest version that fits your project'"></span></div>
+              <span class="badge badge-green" x-show="pkInstalled(typedPkg().name)">Installed</span>
+              <button class="btn btn-sm" x-show="!pkInstalled(typedPkg().name)" @click="addTypedPkg()" x-text="pkOn(typedPkg().name) ? 'Update' : 'Add'"></button>
+            </div>
+          </template>
+          <div class="chips" x-show="pkSel().length">
+            <template x-for="p in pkSel()" :key="p"><span class="chip"><span x-text="p"></span><button @click="togglePkg(p)" :aria-label="'Remove ' + p"><svg class="i" style="width:12px;height:12px"><use href="#i-x"/></svg></button></span></template>
           </div>
           <div class="pkg-layout">
             <div class="pkg-cats" x-show="!pk.q">
@@ -1672,20 +1794,22 @@
               <template x-if="pk.loading"><div class="stack"><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div><div class="skeleton" style="height:56px"></div></div></template>
               <div class="alert error" x-show="pk.error && !pk.loading"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="pk.error"></div><button class="btn btn-link small" @click="searchPackages()">Try again</button></div></div>
               <template x-for="p in visiblePackages()" :key="p.name">
-                <button type="button" class="pkg" :class="{ on: wizard.f.packages.includes(p.name) }" @click="togglePkg(p.name)" :aria-pressed="wizard.f.packages.includes(p.name)">
-                  <span class="box" x-text="wizard.f.packages.includes(p.name) ? '✓' : ''"></span>
+                <button type="button" class="pkg" :class="{ on: pkOn(p.name) || pkInstalled(p.name), off: !!pkMissingExt(p) && !pkOn(p.name) }" @click="togglePkg(p.name)" :aria-pressed="pkOn(p.name)" :disabled="pkInstalled(p.name)">
+                  <span class="box" x-text="pkOn(p.name) || pkInstalled(p.name) ? '✓' : ''"></span>
                   <span class="grow">
                     <span class="pkg-name"><span x-text="p.title || p.name"></span>
-                      <span class="badge badge-blue" x-show="p.recommended">Recommended</span>
+                      <span class="badge badge-green" x-show="pkInstalled(p.name)">Installed</span>
+                      <span class="badge badge-blue" x-show="p.recommended && !pkInstalled(p.name)">Recommended</span>
                       <span class="badge" x-show="p.dev">dev</span>
                       <span class="badge badge-orange" x-show="p.needs" x-text="'uses ' + p.needs"></span>
                       <span class="badge" x-show="p.downloads" x-text="fmtNum(p.downloads) + ' installs'"></span></span>
                     <span class="pkg-desc mono" x-show="p.title" x-text="p.name"></span>
                     <span class="pkg-desc" style="display:block" x-text="p.description"></span>
+                    <span class="pkg-desc pkg-warn" x-show="pkMissingExt(p)" x-text="'Needs PHP’s ' + pkMissingExt(p) + ' extension, which PHP ' + (pkPHP()?.full || '') + ' doesn’t have: it will be skipped.'"></span>
                   </span>
                 </button>
               </template>
-              <div class="empty" x-show="!pk.loading && !pk.error && !visiblePackages().length" style="padding:24px"><h3 x-text="pk.q ? 'No packages found' : 'Nothing here'"></h3><p x-show="pk.q">Try a different word, or the vendor name (e.g. “spatie”).</p></div>
+              <div class="empty" x-show="!pk.loading && !pk.error && !visiblePackages().length && !typedPkg()" style="padding:24px"><h3 x-text="pk.q ? 'No packages found' : 'Nothing here'"></h3><p x-show="pk.q">Try a different word, the vendor name (e.g. “spatie”), or type the full name: vendor/name.</p></div>
             </div>
           </div>
         </div>
@@ -1719,10 +1843,25 @@
             <template x-if="currentJob().done && !currentJob().error">
               <div class="stack">
                 <div class="alert info" style="align-items:center"><svg class="i"><use href="#i-check"/></svg><div class="grow"><b x-text="slug(wizard.f.name) + ' is ready'"></b> at <a :href="previewURL()" target="_blank" rel="noopener" x-text="previewURL()"></a></div></div>
-                <template x-for="w in currentJob().result?.warnings || []" :key="w"><div class="alert small"><svg class="i"><use href="#i-alert"/></svg><div x-text="w"></div></div></template>
+                <div class="small muted" x-show="jobWarnings(currentJob()).some(w => w.fix)">Some optional steps didn't work. Each one below says why, and most can be fixed with one click.</div>
+                <template x-for="w in jobWarnings(currentJob())" :key="w.message">
+                  <div class="alert small warn-fix" :class="{ 'warn-ok': fixState(wizardSite(), w) === 'fixed' }">
+                    <svg class="i"><use :href="fixState(wizardSite(), w) === 'fixed' ? '#i-check' : '#i-alert'"/></svg>
+                    <div class="grow" style="min-width:0">
+                      <div x-text="w.message"></div>
+                      <details class="warn-why" x-show="w.detail && fixState(wizardSite(), w) !== 'fixed'"><summary>Why</summary><pre x-text="w.detail"></pre></details>
+                      <pre class="warn-why-out" x-show="fixState(wizardSite(), w) === 'failed'" x-text="'Still failing: ' + fixError(wizardSite(), w)"></pre>
+                    </div>
+                    <span class="badge badge-green" x-show="fixState(wizardSite(), w) === 'fixed'">Fixed</span>
+                    <button class="btn btn-sm" x-show="w.fix && fixState(wizardSite(), w) !== 'fixed'" :disabled="fixState(wizardSite(), w) === 'running'" @click="runFix(wizardSite(), w)">
+                      <svg class="i spin" x-show="fixState(wizardSite(), w) === 'running'"><use href="#i-loader"/></svg>
+                      <span x-text="fixState(wizardSite(), w) === 'running' ? 'Fixing…' : (fixState(wizardSite(), w) === 'failed' ? 'Try again' : w.fix?.label)"></span>
+                    </button>
+                  </div>
+                </template>
               </div>
             </template>
-            <details :open="!!currentJob().error"><summary class="small muted" style="cursor:pointer">Details</summary><pre class="joblog" x-ref="joblog" x-text="(currentJob().log || []).join('\n')"></pre></details>
+            <details :open="logOpen" @toggle="setLogOpen($el.open)"><summary class="small muted" style="cursor:pointer">Details</summary><pre class="joblog" x-ref="joblog" x-text="(currentJob().log || []).join('\n')"></pre></details>
           </div>
         </template>
       </div>
