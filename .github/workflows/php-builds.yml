@@ -46,7 +46,9 @@ jobs:
       - name: Download sources
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./spc download --with-php=${{ matrix.php }} --for-extensions="$EXTENSIONS" --prefer-pre-built --retry=3
+        # Everything from source: the pre-built SQLite lacks
+        # SQLITE_ENABLE_COLUMN_METADATA and fails spc's own sqlite3 check.
+        run: ./spc download --with-php=${{ matrix.php }} --for-extensions="$EXTENSIONS" --retry=3
       - name: Build cli + fpm
         run: ./spc build "$EXTENSIONS" --build-cli --build-fpm
       - name: Check and package
