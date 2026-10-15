@@ -332,6 +332,22 @@ func scopeIncludes(scope, layer string) bool {
 	}
 }
 
+// ProjectIni is what PHP reports for directives when it runs for a project
+// folder, with every settings layer that applies there.
+func ProjectIni(inst php.Install, dir string, names []string) (map[string]string, error) {
+	c, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	site := ""
+	if _, list, err := Sites(); err == nil {
+		if s, ok := sites.ForPath(list, dir); ok {
+			site = s.Name
+		}
+	}
+	return iniValues(inst, MergedIni(c, inst.Version, site), names)
+}
+
 // iniValues asks PHP for directives' values with settings applied. A
 // directive PHP doesn't know comes back as "".
 func iniValues(inst php.Install, settings map[string]string, names []string) (map[string]string, error) {

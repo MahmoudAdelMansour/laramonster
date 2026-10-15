@@ -167,13 +167,11 @@ func perfCheckup(s sites.Site, inst php.Install) PerfCheckup {
 	}
 
 	// --- PHP itself ---
-	ini := map[string]string{}
-	if v, err := core.ReadPHPSettings(core.SiteScope(s.Name)); err == nil {
-		for _, r := range v.Rows {
-			ini[r.Name] = r.Value
-		}
-	}
-	if isOn(ini["opcache.enable"]) {
+	ini, iniErr := core.ProjectIni(inst, dir, []string{"opcache.enable"})
+	if iniErr != nil {
+		add(PerfCheck{ID: "opcache", Group: "PHP", Title: "OPcache", Status: "info", Detail: "Couldn't read PHP's settings: " + iniErr.Error(),
+			Why: "Without OPcache PHP compiles every file on every request, often doubling response times."})
+	} else if isOn(ini["opcache.enable"]) {
 		add(PerfCheck{ID: "opcache", Group: "PHP", Title: "OPcache", Status: "good", Detail: "On: compiled PHP is kept in memory between requests.",
 			Why: "Without OPcache PHP compiles every file on every request, often doubling response times."})
 	} else {
