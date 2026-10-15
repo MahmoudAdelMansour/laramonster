@@ -72,6 +72,12 @@ func diagnose(version, dir string) Broken {
 		b.Reason = "the download is incomplete (" + name + " is missing): reinstall it"
 		return b
 	}
+	// PHP for Windows keeps its engine in php8.dll (php8ts.dll) next to
+	// php-cgi.exe; without it the exe fails with varying codes.
+	if own, _ := filepath.Glob(filepath.Join(dir, "php*.dll")); runtime.GOOS == "windows" && len(own) == 0 {
+		b.Reason = "the download is incomplete (php8.dll is missing): reinstall it"
+		return b
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "-v").CombinedOutput()
@@ -82,11 +88,9 @@ func diagnose(version, dir string) Broken {
 	case ctx.Err() != nil:
 		b.Reason = fmt.Sprintf("it didn't answer within %s (antivirus scanning it?): try again in a minute", probeTimeout)
 	case errors.As(err, &ee) && runtime.GOOS == "windows" && uint32(ee.ExitCode()) == dllNotFound:
-		// PHP's own php8.dll (php8ts.dll) sits next to php-cgi.exe; the
-		// Visual C++ runtime's vcruntime140.dll lives in System32.
-		if own, _ := filepath.Glob(filepath.Join(dir, "php*.dll")); len(own) == 0 {
-			b.Reason = "the download is incomplete (php8.dll is missing): reinstall it"
-		} else if hasVCRuntime() {
+		// php8.dll is there (checked above), so the missing DLL is the
+		// Visual C++ runtime's (System32\vcruntime140.dll) or one it loads.
+		if hasVCRuntime() {
 			b.Reason = "Windows can't start PHP: a DLL it needs is missing (the Visual C++ runtime may be damaged: reinstall it)"
 			b.VCRedist = true
 		} else {
