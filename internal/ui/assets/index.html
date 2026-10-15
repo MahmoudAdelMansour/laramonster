@@ -140,6 +140,15 @@
       </template>
     </div>
 
+    <!-- LaraMonster PHP builds from before intl was included -->
+    <template x-for="p in (s.php || []).filter(p => p.managed && p.exts?.length && !p.exts.includes('intl'))" :key="'intl' + p.version">
+      <div class="alert" style="margin-bottom:16px;align-items:center" x-show="page === 'dashboard' || page === 'php'">
+        <svg class="i"><use href="#i-alert"/></svg>
+        <div class="grow"><b x-text="'PHP ' + p.full + ' needs an update'"></b> — this build has no <code>intl</code> extension, so Filament and other packages can't install. The new build has it; your sites and settings stay as they are.</div>
+        <button class="btn btn-sm" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)" x-text="jobBusy('Install PHP ' + p.version) ? 'Updating…' : 'Update PHP ' + p.version"></button>
+      </div>
+    </template>
+
     <!-- ============ DASHBOARD ============ -->
     <section x-show="page === 'dashboard'">
       <div class="card hero" style="margin-bottom:16px">

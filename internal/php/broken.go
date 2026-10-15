@@ -47,6 +47,17 @@ func FindBroken(working []Install) []Broken {
 	return out
 }
 
+// hasVCRuntime reports whether the Visual C++ runtime's DLLs are in System32.
+func hasVCRuntime() bool {
+	sys := filepath.Join(os.Getenv("SystemRoot"), "System32")
+	for _, dll := range []string{"vcruntime140.dll", "vcruntime140_1.dll"} {
+		if _, err := os.Stat(filepath.Join(sys, dll)); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // STATUS_DLL_NOT_FOUND: Windows couldn't load a DLL the program needs.
 const dllNotFound = 0xC0000135
 
@@ -71,8 +82,17 @@ func diagnose(version, dir string) Broken {
 	case ctx.Err() != nil:
 		b.Reason = fmt.Sprintf("it didn't answer within %s (antivirus scanning it?): try again in a minute", probeTimeout)
 	case errors.As(err, &ee) && runtime.GOOS == "windows" && uint32(ee.ExitCode()) == dllNotFound:
-		b.VCRedist = true
-		b.Reason = "Windows can't start PHP: the Microsoft Visual C++ runtime (2015-2022, x64) isn't installed"
+		// PHP's own php8.dll (php8ts.dll) sits next to php-cgi.exe; the
+		// Visual C++ runtime's vcruntime140.dll lives in System32.
+		if own, _ := filepath.Glob(filepath.Join(dir, "php*.dll")); len(own) == 0 {
+			b.Reason = "the download is incomplete (php8.dll is missing): reinstall it"
+		} else if hasVCRuntime() {
+			b.Reason = "Windows can't start PHP: a DLL it needs is missing (the Visual C++ runtime may be damaged: reinstall it)"
+			b.VCRedist = true
+		} else {
+			b.VCRedist = true
+			b.Reason = "Windows can't start PHP: the Microsoft Visual C++ runtime (2015-2022, x64) isn't installed"
+		}
 	case err != nil:
 		msg := strings.TrimSpace(string(out))
 		if len(msg) > 300 {

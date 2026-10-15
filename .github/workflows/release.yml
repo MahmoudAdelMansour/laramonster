@@ -101,9 +101,10 @@ jobs:
         with: { go-version-file: go.mod }
       - name: "Unit tests (Windows: self-update, PHP that won't start)"
         run: |
-          go test -v ./internal/selfupdate/ ./internal/update/ ./internal/php/ 2>&1 | tee test.log
-          # The missing-DLL test needs MinGW's gcc: make sure it really ran.
+          LARAMONSTER_LIVE_PHP=8.4 go test -v ./internal/selfupdate/ ./internal/update/ ./internal/php/ 2>&1 | tee test.log
+          # Both PHP tests must really run (one needs MinGW's gcc).
           grep -q -- '--- PASS: TestFindBrokenMissingDLL' test.log
+          grep -q -- '--- PASS: TestLiveWindowsInstallDiscoverAndBroken' test.log
       - uses: actions/download-artifact@v4
         with: { name: linux-and-windows, path: dist }
       - name: Smoke test (Windows, plain .exe)
