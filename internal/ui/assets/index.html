@@ -143,10 +143,10 @@
     </div>
 
     <!-- LaraMonster PHP builds from before intl was included -->
-    <template x-for="p in (s.php || []).filter(p => p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex')))" :key="'intl' + p.version">
+    <template x-for="p in (s.php || []).filter(p => p.managed && p.exts?.length && !['intl', 'mbregex', 'gdjpeg'].every(e => p.exts.includes(e)))" :key="'intl' + p.version">
       <div class="alert" style="margin-bottom:16px;align-items:center" x-show="page === 'dashboard'">
         <svg class="i"><use href="#i-alert"/></svg>
-        <div class="grow"><b x-text="'PHP ' + p.full + ' needs an update'"></b> — this build lacks <code>intl</code> or <code>mb_split</code>, which Filament, other packages and parts of Laravel need. The new build has both; your sites and settings stay as they are.</div>
+        <div class="grow"><b x-text="'PHP ' + p.full + ' needs an update'"></b> — this build lacks <code>intl</code>, <code>mb_split</code> or JPEG images, which Filament, image uploads and parts of Laravel need. The new build has them all; your sites and settings stay as they are.</div>
         <button class="btn btn-sm" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)" x-text="jobBusy('Install PHP ' + p.version) ? 'Updating…' : 'Update PHP ' + p.version"></button>
       </div>
     </template>
@@ -454,10 +454,10 @@
               </div>
               <div class="small muted mono ellipsis" x-text="p.fpm"></div>
               <div class="small muted" x-text="sitesOn(p.version) + ' site(s)'"></div>
-              <div class="small" style="color:var(--warn-text);font-weight:600" x-show="p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex'))">This build lacks intl or mb_split (Filament, other packages and parts of Laravel need them). Update it to the new build.</div>
+              <div class="small" style="color:var(--warn-text);font-weight:600" x-show="p.managed && p.exts?.length && !['intl', 'mbregex', 'gdjpeg'].every(e => p.exts.includes(e))">This build lacks intl, mb_split or JPEG support (Filament, image uploads and parts of Laravel need them). Update it to the new build.</div>
             </div>
             <div class="actions">
-              <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !(p.exts.includes('intl') && p.exts.includes('mbregex'))" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
+              <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !['intl', 'mbregex', 'gdjpeg'].every(e => p.exts.includes(e))" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
               <button class="btn btn-sm btn-ghost" @click="openIni(p.version)"><svg class="i"><use href="#i-cog"/></svg> Settings</button>
               <button class="btn btn-sm btn-ghost" x-show="p.version !== s.default_php" @click="setDefault(p.version)">Make default</button>
               <button class="btn btn-sm btn-danger" x-show="p.managed" @click="uninstallPHP(p.version)">Uninstall</button>

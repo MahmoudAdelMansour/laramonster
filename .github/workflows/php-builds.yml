@@ -22,6 +22,7 @@ env:
   # Every extension LaraMonster's PHP had before, plus intl, sodium and
   # mbregex (mb_split: Laravel's Str::studly needs it).
   EXTENSIONS: bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,intl,mbregex,mbstring,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_pgsql,pdo_sqlite,pgsql,phar,posix,redis,session,simplexml,soap,sockets,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+  LIBS: libjpeg,libwebp,freetype
   SPC: https://dl.static-php.dev/static-php-cli/spc-bin/nightly
 
 jobs:
@@ -50,9 +51,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Everything from source: the pre-built SQLite lacks
         # SQLITE_ENABLE_COLUMN_METADATA and fails spc's own sqlite3 check.
-        run: ./spc download --with-php=${{ matrix.php }} --for-extensions="$EXTENSIONS" --retry=3
+        run: ./spc download --with-php=${{ matrix.php }} --for-extensions="$EXTENSIONS" --for-libs="$LIBS" --retry=3
       - name: Build cli + fpm
-        run: ./spc build "$EXTENSIONS" --build-cli --build-fpm
+        # GD with JPEG, WebP and FreeType: uploads, thumbnails, PDFs and
+        # image packages (Intervention, Spatie Media Library) need them.
+        run: ./spc build "$EXTENSIONS" --with-libs="$LIBS" --build-cli --build-fpm
       - name: Check and package
         run: |
           bin=buildroot/bin
@@ -61,6 +64,7 @@ jobs:
             $bin/php -r "extension_loaded('$ext') || exit(1);" || { echo "missing $ext"; exit 1; }
           done
           $bin/php -r "function_exists('mb_split') || exit(1);" || { echo "missing mbregex (mb_split)"; exit 1; }
+          $bin/php -r '$g = gd_info(); exit(!empty($g["JPEG Support"]) && !empty($g["WebP Support"]) && !empty($g["FreeType Support"]) ? 0 : 1);' || { echo "gd lacks JPEG, WebP or FreeType"; exit 1; }
           $bin/php-fpm -v
           full=$($bin/php -r 'echo PHP_VERSION;')
           mkdir -p out

@@ -199,7 +199,7 @@ func extensions(i Install) (pdo, exts []string) {
 	if i.CLI == "" {
 		return nil, nil
 	}
-	cmd := exec.Command(i.CLI, "-r", "echo (class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : ''), '|', strtolower(implode(',', get_loaded_extensions())), (function_exists('mb_split') ? ',mbregex' : '');")
+	cmd := exec.Command(i.CLI, "-r", "echo (class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : ''), '|', strtolower(implode(',', get_loaded_extensions())), (function_exists('mb_split') ? ',mbregex' : ''), (function_exists('imagejpeg') ? ',gdjpeg' : '');")
 	cmd.Env = append(os.Environ(), i.Env()...)
 	out, err := cmd.Output()
 	if err != nil {
