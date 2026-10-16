@@ -1516,6 +1516,7 @@
               <div class="row" style="gap:8px; flex-wrap:wrap">
                 <button class="btn btn-sm" x-show="upd?.phase === 'ready'" :disabled="updRestarting" @click="restartForUpdate()"><svg class="i" :class="{ spin: updRestarting }"><use :href="updRestarting ? '#i-loader' : '#i-refresh'"/></svg> Restart now</button>
                 <button class="btn btn-sm" x-show="update?.available && desktop && upd?.kind === 'self' && ['idle', 'error'].includes(upd?.phase)" @click="installUpdate(false)"><svg class="i"><use href="#i-download"/></svg> <span x-text="upd?.phase === 'error' ? 'Try again' : 'Update now'"></span></button>
+                <button class="btn btn-sm" x-show="desktop && upd?.kind === 'translocated'" :disabled="moving" @click="moveToApplications()"><svg class="i" :class="{ spin: moving }"><use :href="moving ? '#i-loader' : '#i-refresh'"/></svg> Move to Applications</button>
                 <button class="btn btn-sm" x-show="update?.available && desktop && upd?.kind === 'store'" @click="openURL(upd.store_url)">Open Microsoft Store</button>
                 <button class="btn btn-sm" :class="{ 'btn-ghost': desktop && upd?.kind === 'self' }" x-show="update?.available && (!desktop || (upd?.kind !== 'store' && !['downloading', 'installing', 'ready'].includes(upd?.phase)))" @click="openURL(update.download_url)"><svg class="i"><use href="#i-download"/></svg> <span x-text="desktop && upd?.kind === 'self' ? 'Download manually' : 'Download v' + update?.latest"></span></button>
                 <button class="btn btn-sm btn-ghost" :disabled="updChecking || ['downloading', 'installing'].includes(upd?.phase)" @click="checkForUpdates()"><svg class="i" :class="{ spin: updChecking }"><use :href="updChecking ? '#i-loader' : '#i-refresh'"/></svg> Check for updates</button>
@@ -2326,8 +2327,7 @@
         <div class="bar" :class="{ indet: upd?.phase === 'installing' }"><i :style="'width:' + Math.max(4, upd?.progress || 0) + '%'"></i></div>
       </div>
       <div class="alert info small" x-show="upd?.kind === 'store'"><svg class="i"><use href="#i-info"/></svg><div>This copy comes from the Microsoft Store, which installs updates by itself. Open the Store to get it now.</div></div>
-      <template x-if="upd?.kind === 'translocated'"><div class="alert small"><svg class="i"><use href="#i-info"/></svg><div><b>Move LaraMonster to Applications first.</b> macOS runs it from a read-only copy because it was opened where it was downloaded, so it can't replace itself.
-        <ol class="steps-mini"><li>Quit LaraMonster (tray icon → Stop engine and quit).</li><li>In Finder, drag <b>LaraMonster</b> from Downloads into <b>Applications</b>.</li><li>Open it from Applications. Updates then install by themselves.</li></ol></div></div></template>
+      <template x-if="upd?.kind === 'translocated'"><div class="alert small"><svg class="i"><use href="#i-info"/></svg><div><b>Move LaraMonster to Applications first.</b> macOS runs it from a read-only copy because it was opened where it was downloaded, so it can't replace itself. <b>Move to Applications</b> moves it and restarts; updates then install by themselves.</div></div></template>
       <div class="alert small" x-show="upd?.phase === 'error'"><svg class="i"><use href="#i-info"/></svg><div x-text="upd?.error"></div></div>
       <a class="small" href="#" x-show="update?.notes_url" @click.prevent="openURL(update.notes_url)">What's new</a>
     </div>
@@ -2335,6 +2335,7 @@
       <button class="btn btn-ghost" @click="updDialog = false">Later</button>
       <button class="btn" x-show="upd?.phase === 'ready'" :disabled="updRestarting" @click="restartForUpdate()"><svg class="i" :class="{ spin: updRestarting }"><use :href="updRestarting ? '#i-loader' : '#i-refresh'"/></svg> Restart now</button>
       <button class="btn" x-show="upd?.kind === 'self' && ['idle', 'error'].includes(upd?.phase)" @click="installUpdate(false)"><svg class="i"><use href="#i-download"/></svg> <span x-text="upd?.phase === 'error' ? 'Try again' : 'Update now'"></span></button>
+      <button class="btn" x-show="upd?.kind === 'translocated'" :disabled="moving" @click="moveToApplications()"><svg class="i" :class="{ spin: moving }"><use :href="moving ? '#i-loader' : '#i-refresh'"/></svg> Move to Applications</button>
       <button class="btn" x-show="upd?.kind === 'store'" @click="openURL(upd.store_url)">Open Microsoft Store</button>
       <button class="btn" x-show="upd?.kind === 'none' || upd?.phase === 'error'" :class="{ 'btn-ghost': upd?.phase === 'error' }" @click="openURL(update?.download_url)">Download</button>
     </div>

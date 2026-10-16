@@ -28,7 +28,7 @@ LaraMonster isn't signed by Apple yet, and Windows doesn't know the plain `.exe`
 ### macOS (11 or newer, Apple Silicon and Intel)
 
 1. Download **`LaraMonster-macos-universal.zip`** and double-click it to unzip.
-2. Drag **LaraMonster** into your **Applications** folder. Open it from there; it can only update itself from Applications.
+2. Drag **LaraMonster** into your **Applications** folder and open it from there; it can only update itself from Applications. If you open it from Downloads, it offers to move itself (**Move to Applications**).
 3. Double-click LaraMonster. macOS says *“Apple could not verify ‘LaraMonster’ is free of malware…”*. Click **Done** (not *Move to Trash*).
 4. Open **System Settings → Privacy & Security** and scroll down to **Security**. Next to *“LaraMonster was blocked to protect your Mac”*, click **Open Anyway**.
 5. Click **Open Anyway** once more and enter your Mac password. LaraMonster opens.

@@ -72,6 +72,11 @@ func main() {
 		background = slices.Contains(os.Args[1:], "--background")
 	)
 
+	// macOS: offer to move into Applications when opened from elsewhere.
+	if offerMove(os.Args[1:], background) {
+		return
+	}
+
 	// Run the engine in-process if nothing else is running it.
 	if !client.Running() {
 		ownsEngine = true
@@ -267,6 +272,14 @@ func assetHandler(app **application.App, ready, restart func()) http.Handler {
 			}
 			if err := selfupdate.Restart(os.Args[1:]); err != nil {
 				writeError(w, "couldn't start the new version: "+err.Error())
+				return
+			}
+			writeJSON(w, map[string]bool{"ok": true})
+			go func() { time.Sleep(300 * time.Millisecond); restart() }()
+		case r.URL.Path == "/app/move" && r.Method == http.MethodPost:
+			// macOS: move into Applications, then quit for the moved copy.
+			if err := moveSelf(os.Args[1:]); err != nil {
+				writeError(w, err.Error())
 				return
 			}
 			writeJSON(w, map[string]bool{"ok": true})

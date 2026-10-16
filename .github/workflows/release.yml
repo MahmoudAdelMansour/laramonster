@@ -160,7 +160,7 @@ jobs:
 
             ## First launch
 
-            - **macOS:** unzip, drag LaraMonster into Applications and open it. When macOS says it *could not verify* LaraMonster, click **Done**, then **System Settings → Privacy & Security → Open Anyway**.
+            - **macOS:** unzip, drag LaraMonster into Applications and open it (opened from Downloads, it offers to move itself there). When macOS says it *could not verify* LaraMonster, click **Done**, then **System Settings → Privacy & Security → Open Anyway**.
             - **Windows (.exe):** if *Windows protected your PC* appears, click **More info → Run anyway**.
 
             Only the first launch asks; LaraMonster updates itself after that. Step-by-step guide: https://github.com/MahmoudAdelMansour/laramonster-releases#install

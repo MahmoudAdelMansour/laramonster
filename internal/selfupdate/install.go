@@ -32,7 +32,7 @@ func install(exe, file, work string) error {
 // bundle is downloaded by LaraMonster, not a browser, so macOS doesn't
 // quarantine it and it opens without the "can't be opened" warning.
 func installMac(exe, file, work string) error {
-	app := appBundle(exe)
+	app := AppBundle(exe)
 	unz := filepath.Join(work, "unzipped")
 	if out, err := exec.Command("ditto", "-x", "-k", file, unz).CombinedOutput(); err != nil {
 		return fmt.Errorf("couldn't unpack the update: %v: %s", err, strings.TrimSpace(string(out)))
@@ -134,20 +134,37 @@ func Restart(args []string) error {
 			pass = append(pass, a)
 		}
 	}
-	var cmd *exec.Cmd
-	if app := appBundle(exe); runtime.GOOS == "darwin" && app != "" {
-		cmd = exec.Command("open", append([]string{"-n", app, "--args"}, pass...)...)
-	} else {
-		cmd = exec.Command(exe, pass...)
+	if app := AppBundle(exe); runtime.GOOS == "darwin" && app != "" {
+		return openApp(app, pass)
 	}
+	cmd := exec.Command(exe, pass...)
 	detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	if runtime.GOOS == "darwin" {
-		return cmd.Wait() // open returns once the app is launched
-	}
 	return cmd.Process.Release()
+}
+
+// Launch opens the macOS app bundle at app (a moved copy of this one); it
+// waits for this process to exit, like a restart after an update. The caller
+// quits right after.
+func Launch(app string, args []string) error {
+	pass := []string{afterUpdate + strconv.Itoa(os.Getpid())}
+	for _, a := range args {
+		if !strings.HasPrefix(a, afterUpdate) {
+			pass = append(pass, a)
+		}
+	}
+	return openApp(app, pass)
+}
+
+func openApp(app string, args []string) error {
+	cmd := exec.Command("open", append([]string{"-n", app, "--args"}, args...)...)
+	detach(cmd)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Wait() // open returns once the app is launched
 }
 
 // WaitForPrevious blocks, at most 30 seconds, until the version that

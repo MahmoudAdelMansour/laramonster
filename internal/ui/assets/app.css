@@ -848,4 +848,3 @@ html.desktop :is(button, .btn, .switch input, .step, .choice, .pkg, .mail-item, 
 .update-chip:hover { filter: brightness(1.05); }
 .update-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .update-chip .i { width: 14px; height: 14px; flex: none; }
-.steps-mini { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }

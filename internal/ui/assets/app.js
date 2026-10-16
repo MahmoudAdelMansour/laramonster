@@ -155,6 +155,7 @@ document.addEventListener('alpine:init', () => {
     upd: null, // desktop app only: { kind: self|store|none, phase, version, progress, error } from /app/update
     updDialog: false,
     updRestarting: false,
+    moving: false,
     updChecking: false,
     updShown: false, // the "update available" dialog opens once per launch
     updTimer: null,
@@ -753,6 +754,16 @@ document.addEventListener('alpine:init', () => {
         if (!r.ok) throw new Error(j.error || 'Could not restart');
       } catch (e) { this.updRestarting = false; this.toast(e.message, 'err'); }
     },
+    // macOS: move a translocated (read-only) copy into Applications; the app
+    // restarts from there.
+    async moveToApplications() {
+      this.moving = true;
+      try {
+        const r = await fetch('/app/move', { method: 'POST' });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'Could not move LaraMonster');
+      } catch (e) { this.moving = false; this.toast('Couldn’t move LaraMonster: ' + e.message + '. In Finder, drag it into Applications instead.', 'err'); }
+    },
     // Settings → Updates: one word for the badge, one sentence for the detail.
     updStatus() {
       const v = 'v' + (this.update?.latest || '');
@@ -764,7 +775,7 @@ document.addEventListener('alpine:init', () => {
         case 'error': return { word: 'Update failed', badge: 'badge-red', detail: this.upd.error, alert: 'error' };
       }
       if (this.update?.error) return { word: 'Couldn’t check', badge: 'badge-red', detail: 'Couldn’t check for updates: ' + this.update.error + '.', alert: 'error' };
-      if (this.upd?.kind === 'translocated') return { word: this.update?.available ? 'Update available' : 'Can’t update', badge: 'badge-orange', detail: 'Move LaraMonster into your Applications folder and open it from there: macOS runs it from a read-only copy while it stays where it was downloaded, so it can’t update itself.', alert: 'info' };
+      if (this.upd?.kind === 'translocated') return { word: this.update?.available ? 'Update available' : 'Can’t update', badge: 'badge-orange', detail: 'macOS runs LaraMonster from a read-only copy while it stays where it was downloaded, so it can’t update itself. Move it to Applications to fix that.', alert: 'info' };
       if (this.update?.available) return { word: 'Update available', badge: 'badge-orange', detail: v + ' is available.' };
       if (!this.update) return { word: 'Not checked', badge: '', detail: '' };
       if (/dev|-\d+-g[0-9a-f]+$|-dirty$/.test(this.update.current || '')) return { word: 'Development build', badge: '', detail: 'This is a development build, so it doesn’t update itself.' };

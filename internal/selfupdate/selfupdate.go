@@ -95,7 +95,7 @@ func KindOf(exe string) Kind {
 		return None
 	case runtime.GOOS == "windows" && strings.Contains(strings.ToLower(exe), `\windowsapps\`):
 		return Store
-	case runtime.GOOS == "darwin" && appBundle(exe) == "":
+	case runtime.GOOS == "darwin" && AppBundle(exe) == "":
 		return None // a bare binary, not LaraMonster.app
 	case runtime.GOOS == "darwin" && strings.Contains(exe, "/AppTranslocation/"):
 		return Translocated
@@ -103,8 +103,8 @@ func KindOf(exe string) Kind {
 	return Self
 }
 
-// appBundle is the .app folder around a macOS binary, or "".
-func appBundle(exe string) string {
+// AppBundle is the .app folder around a macOS binary, or "".
+func AppBundle(exe string) string {
 	dir := filepath.Dir(exe) // .../LaraMonster.app/Contents/MacOS
 	if filepath.Base(dir) != "MacOS" || filepath.Base(filepath.Dir(dir)) != "Contents" {
 		return ""
@@ -126,7 +126,7 @@ func Start(version, downloadURL string) error {
 	case None:
 		return errors.New("this copy of LaraMonster can't update itself: download the new version instead")
 	case Translocated:
-		return errors.New("macOS runs LaraMonster from a read-only copy because it was opened where it was downloaded: quit LaraMonster, drag it into your Applications folder and open it from there, then update")
+		return errors.New("macOS runs LaraMonster from a read-only copy because it was opened where it was downloaded: click Move to Applications (Settings → Updates), then update")
 	}
 	if !strings.HasPrefix(downloadURL, Releases) {
 		return errors.New("updates are only installed from LaraMonster's releases page: download the new version instead")
@@ -174,7 +174,7 @@ func run(exe, downloadURL string) error {
 // swap is a rename.
 func workDir(exe string) string {
 	dir := filepath.Dir(exe)
-	if app := appBundle(exe); app != "" {
+	if app := AppBundle(exe); app != "" {
 		dir = filepath.Dir(app)
 	}
 	if f, err := os.CreateTemp(dir, ".laramonster-probe-"); err == nil {
