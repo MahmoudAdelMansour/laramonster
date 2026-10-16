@@ -51,6 +51,9 @@ final class LaraMonsterDispatcher extends Dispatcher
             return $callable;
         }
         $describe = LaraMonsterTracker::describeListener($listener);
+        if (str_contains($describe['name'], 'agent-debug.php')) {
+            return $callable; // the Debugger's own listener
+        }
 
         return static function (...$args) use ($callable, $describe) {
             $tracker = LaraMonsterTracker::current();

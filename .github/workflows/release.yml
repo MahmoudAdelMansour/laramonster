@@ -167,5 +167,5 @@ jobs:
 
             Command-line only: `laramonster-cli-<os>-<arch>`. Verify with `SHA256SUMS`. `LaraMonster-windows-x64.msix` is the Microsoft Store package.
 
-            LaraMonster is free. Pro (Event Tracker, Jobs & Queues): https://monstersgate.com/laramonster
+            LaraMonster is free. Pro (Event Tracker, Jobs & Queues, Performance, Webhooks): https://monstersgate.com/laramonster
           files: dist/*

@@ -21,6 +21,7 @@ import (
 	"laramonster/internal/php"
 	"laramonster/internal/server"
 	"laramonster/internal/services"
+	"laramonster/internal/share"
 	"laramonster/internal/sites"
 	"laramonster/internal/trust"
 )
@@ -50,6 +51,7 @@ type Runtime struct {
 
 	acct    *account.Client
 	workers *laravel.Workers
+	shares  *share.Manager // public links (Cloudflare tunnels)
 }
 
 func NewRuntime() *Runtime {
@@ -62,6 +64,8 @@ func NewRuntime() *Runtime {
 	r.mon = newMonitor(r)
 	r.acct = account.New()
 	r.workers = laravel.NewWorkers()
+	r.shares = share.NewManager()
+	r.shares.Reload = r.reloadQuiet
 	return r
 }
 
@@ -130,6 +134,24 @@ func (r *Runtime) Reload() error {
 	if err := laravel.WriteTracking(tracked); err != nil {
 		warnings = append(warnings, "event tracker: "+err.Error())
 	}
+	// Debugger (free): the same agent, for every site with it on.
+	var debugged []laravel.DebugSite
+	for _, s := range list {
+		if cfg.Debugging[s.Name] && s.Enabled && s.Proxy == "" && laravel.IsLaravel(s.Path) {
+			debugged = append(debugged, laravel.DebugSite{Dir: s.Path, Echo: !cfg.DebugQuiet[s.Name]})
+			if s.PHP != "" {
+				r.fpm.Prepend[s.PHP] = laravel.AgentFile()
+			}
+		}
+	}
+	if err := laravel.WriteDebug(debugged); err != nil {
+		warnings = append(warnings, "debugger: "+err.Error())
+	}
+	r.fpm.Extensions = map[string][]string{}
+	for _, inst := range needed {
+		r.fpm.Extensions[inst.Version] = core.ExtensionArgs(cfg, inst)
+	}
+	r.applyWebhookWatch(cfg, list)
 	r.fpm.Configure(core.PoolIni(cfg, list))
 	if err := r.fpm.Ensure(needed); err != nil {
 		warnings = append(warnings, err.Error())
@@ -156,7 +178,8 @@ func (r *Runtime) Reload() error {
 		proxies = append(proxies, server.Proxy{Name: server.MailName, Upstream: fmt.Sprintf("127.0.0.1:%d", d.WebPort(port))})
 	}
 
-	caddyfile := server.Caddyfile(cfg, list, r.fpm.UpstreamsFor, dedupe(proxies))
+	caddyfile := server.Caddyfile(cfg, list, r.fpm.UpstreamsFor, dedupe(proxies)) +
+		server.ShareBlocks(list, r.fpm.UpstreamsFor, r.shares.Blocks())
 	// Kept for debugging: what Caddy is actually running.
 	_ = os.WriteFile(filepath.Join(paths.Run(), "Caddyfile"), []byte(caddyfile), 0o644)
 	if err := server.Apply(caddyfile); err != nil {
@@ -198,6 +221,7 @@ func (r *Runtime) StartEnabledServices() {
 }
 
 func (r *Runtime) Shutdown() {
+	r.shares.StopAll()
 	r.workers.StopAll()
 	r.svc.StopAll()
 	r.fpm.StopAll()
@@ -231,6 +255,7 @@ type Status struct {
 	Mail         MailStatus       `json:"mail"`
 	Warnings     []string         `json:"warnings"`
 	Jobs         []core.Job       `json:"jobs"`
+	Shares       []share.Link     `json:"shares"`
 }
 
 func (r *Runtime) Status() Status {
@@ -264,6 +289,7 @@ func (r *Runtime) Status() Status {
 		Mail:      r.mailStatus(),
 		Warnings:  warnings,
 		Jobs:      r.jobs.Snapshot(),
+		Shares:    r.shares.List(),
 	}
 	if st.PHPBroken == nil {
 		st.PHPBroken = []php.Broken{}

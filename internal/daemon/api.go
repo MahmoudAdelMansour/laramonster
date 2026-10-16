@@ -231,6 +231,9 @@ func (rt *Runtime) Handler(stop func()) http.Handler {
 	rt.registerExtra(handle, mux)
 	rt.registerSetup(handle)
 	rt.registerSiteSettings(handle)
+	rt.registerDebug(handle)
+	rt.registerShare(handle)
+	rt.registerExtensions(handle)
 	rt.registerPro(handle, mux)
 	mux.Handle("/", ui.Handler())
 	return mux

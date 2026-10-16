@@ -6,7 +6,8 @@
  *
  *   php -d auto_prepend_file=agent.php runner.php <project> <command> <input.json>
  *
- * Commands: events, dispatch-event, jobs, run-job, queues, queue-action.
+ * Commands: events, dispatch-event, jobs, run-job, queues, queue-action,
+ * routes, auth-info, login-as, logout-as.
  */
 
 const LM_MARK = "\n@@LARAMONSTER-RESULT@@\n";
@@ -484,6 +485,181 @@ switch ($command) {
         }
         $code = Illuminate\Support\Facades\Artisan::call($map[$action][0], $map[$action][1]);
         lm_out(['ok' => $code === 0, 'output' => trim(Illuminate\Support\Facades\Artisan::output())]);
+
+    case 'routes':
+        // Every route, with the facts Webhooks needs: does Laravel's CSRF
+        // check run on it (a POST from a provider would get 419)?
+        // The HTTP kernel gives the router its middleware groups (web, api).
+        app(Illuminate\Contracts\Http\Kernel::class);
+        $router = app('router');
+        // Laravel 13: PreventRequestForgery (ValidateCsrfToken extends it).
+        $csrfClasses = ['Illuminate\\Foundation\\Http\\Middleware\\PreventRequestForgery', 'Illuminate\\Foundation\\Http\\Middleware\\ValidateCsrfToken', 'Illuminate\\Foundation\\Http\\Middleware\\VerifyCsrfToken'];
+        $csrf = null;
+        foreach (['App\\Http\\Middleware\\VerifyCsrfToken', 'Illuminate\\Foundation\\Http\\Middleware\\ValidateCsrfToken', 'Illuminate\\Foundation\\Http\\Middleware\\PreventRequestForgery', 'Illuminate\\Foundation\\Http\\Middleware\\VerifyCsrfToken'] as $c) {
+            if (class_exists($c)) {
+                try {
+                    $csrf = app($c);
+                    break;
+                } catch (Throwable) {
+                }
+            }
+        }
+        $routes = [];
+        foreach ($router->getRoutes()->getRoutes() as $route) {
+            $methods = array_values(array_diff($route->methods(), ['HEAD']));
+            $middleware = [];
+            try {
+                $middleware = $router->gatherRouteMiddleware($route);
+            } catch (Throwable) {
+            }
+            $classes = array_map(fn ($m) => is_string($m) ? explode(':', $m)[0] : (is_object($m) ? get_class($m) : ''), $middleware);
+            $checksCsrf = false;
+            foreach ($classes as $c) {
+                foreach ($csrfClasses as $base) {
+                    if ($c !== '' && class_exists($c) && is_a($c, $base, true)) {
+                        $checksCsrf = true;
+                    }
+                }
+            }
+            $excepted = false;
+            if ($checksCsrf && $csrf) {
+                try {
+                    $uri = '/'.ltrim(preg_replace('/\{[^}]+\}/', 'x', $route->uri()), '/');
+                    $request = Illuminate\Http\Request::create($uri, 'POST');
+                    $excepted = (fn ($r) => $this->inExceptArray($r))->call($csrf, $request);
+                } catch (Throwable) {
+                }
+            }
+            $routes[] = [
+                'methods' => $methods,
+                'uri' => '/'.ltrim($route->uri(), '/'),
+                'name' => $route->getName(),
+                'action' => $route->getActionName(),
+                'middleware' => array_values(array_unique(array_map(fn ($m) => is_string($m) ? $m : '', $route->gatherMiddleware()))),
+                'auth' => (bool) array_filter($classes, fn ($c) => $c !== '' && class_exists($c) && is_a($c, 'Illuminate\\Auth\\Middleware\\Authenticate', true)),
+                'csrf' => $checksCsrf && ! $excepted,
+            ];
+        }
+        $l11 = is_file(base_path('bootstrap/app.php')) && str_contains((string) file_get_contents(base_path('bootstrap/app.php')), 'withMiddleware');
+        lm_out(['ok' => true, 'routes' => $routes, 'laravel' => app()->version(), 'bootstrap_middleware' => $l11]);
+
+    case 'auth-info':
+        // Guards, and how a load test can sign in as a user.
+        $guards = [];
+        foreach ((array) config('auth.guards', []) as $name => $g) {
+            $provider = (array) config('auth.providers.'.($g['provider'] ?? ''), []);
+            $guards[] = ['name' => $name, 'driver' => $g['driver'] ?? '', 'provider' => $g['provider'] ?? null, 'model' => $provider['model'] ?? null];
+        }
+        if (class_exists('Laravel\\Sanctum\\Sanctum') && ! in_array('sanctum', array_column($guards, 'name'), true)) {
+            $guards[] = ['name' => 'sanctum', 'driver' => 'sanctum', 'provider' => null, 'model' => config('auth.providers.users.model')];
+        }
+        $roles = $permissions = [];
+        $spatie = class_exists('Spatie\\Permission\\Models\\Role');
+        if ($spatie) {
+            try {
+                $roles = app(config('permission.models.role', 'Spatie\\Permission\\Models\\Role'))->newQuery()->orderBy('name')->limit(200)->get(['name', 'guard_name'])->map(fn ($r) => ['name' => $r->name, 'guard' => $r->guard_name])->all();
+                $permissions = app(config('permission.models.permission', 'Spatie\\Permission\\Models\\Permission'))->newQuery()->orderBy('name')->limit(300)->get(['name', 'guard_name'])->map(fn ($r) => ['name' => $r->name, 'guard' => $r->guard_name])->all();
+            } catch (Throwable) {
+            }
+        }
+        $users = 0;
+        try {
+            $model = config('auth.providers.users.model');
+            $users = $model && class_exists($model) ? $model::query()->count() : 0;
+        } catch (Throwable) {
+        }
+        lm_out(['ok' => true, 'default' => config('auth.defaults.guard'), 'guards' => $guards, 'spatie' => $spatie, 'roles' => $roles, 'permissions' => $permissions,
+            'users' => $users, 'session' => ['driver' => config('session.driver'), 'cookie' => config('session.cookie')]]);
+
+    case 'login-as':
+        // Signs a user in without the login form and returns what a client
+        // needs to be them: the session cookie, or an API token.
+        $guardName = (string) ($input['guard'] ?? '') ?: config('auth.defaults.guard');
+        $guardCfg = (array) config('auth.guards.'.$guardName, []);
+        $driver = $guardName === 'sanctum' ? 'sanctum' : ($guardCfg['driver'] ?? '');
+        $providerName = $guardCfg['provider'] ?? 'users';
+        $model = config('auth.providers.'.$providerName.'.model') ?: config('auth.providers.users.model');
+        if (! $model || ! class_exists($model)) {
+            throw new RuntimeException("The {$guardName} guard has no Eloquent user model LaraMonster can use.");
+        }
+        $by = (string) ($input['by'] ?? 'id');
+        $value = trim((string) ($input['value'] ?? ''));
+        $user = null;
+        switch ($by) {
+            case 'id':
+                $user = $model::query()->find($value);
+                break;
+            case 'email':
+                $user = $model::query()->where('email', $value)->first();
+                break;
+            case 'role':
+                if (! method_exists($model, 'role')) {
+                    throw new RuntimeException('Roles need spatie/laravel-permission on the user model.');
+                }
+                $user = $model::role($value)->first();
+                break;
+            case 'permission':
+                if (! method_exists($model, 'permission')) {
+                    throw new RuntimeException('Permissions need spatie/laravel-permission on the user model.');
+                }
+                $user = $model::permission($value)->first();
+                break;
+            case 'credentials':
+                $provider = Illuminate\Support\Facades\Auth::createUserProvider($providerName);
+                $user = $provider?->retrieveByCredentials(['email' => $value]);
+                if (! $user || ! $provider->validateCredentials($user, ['password' => (string) ($input['password'] ?? '')])) {
+                    throw new RuntimeException('That email and password don\'t match a user.');
+                }
+                break;
+            default:
+                throw new InvalidArgumentException("Unknown way to pick a user: {$by}.");
+        }
+        if (! $user) {
+            throw new RuntimeException(match ($by) {
+                'role' => "No user has the role {$value}.",
+                'permission' => "No user has the permission {$value}.",
+                'email' => "No user has the email {$value}.",
+                default => "No user with ID {$value}.",
+            });
+        }
+        $label = trim((string) ($user->name ?? '').' '.(isset($user->email) ? '<'.$user->email.'>' : '')) ?: '#'.$user->getAuthIdentifier();
+        $out = ['ok' => true, 'user' => ['id' => (string) $user->getAuthIdentifier(), 'label' => $label], 'cookies' => [], 'headers' => []];
+        if ($driver === 'sanctum' || $driver === 'token' || $driver === 'passport') {
+            if (! method_exists($user, 'createToken')) {
+                throw new RuntimeException("The {$guardName} guard uses API tokens, but the user model can't create them (add Laravel\\Sanctum\\HasApiTokens).");
+            }
+            $token = $user->createToken('LaraMonster load test');
+            $out['headers']['Authorization'] = 'Bearer '.($token->plainTextToken ?? $token->accessToken);
+            $out['token_id'] = (string) ($token->accessToken->id ?? $token->token->id ?? '');
+            $out['headers']['Accept'] = 'application/json';
+        } else {
+            // A real session in the app's own store, with its encrypted cookie.
+            $session = app('session')->driver();
+            $session->start();
+            Illuminate\Support\Facades\Auth::guard($guardName)->login($user);
+            $session->put('_token', Illuminate\Support\Str::random(40));
+            $session->save();
+            $name = $session->getName();
+            $id = $session->getId();
+            $encrypter = app('encrypter');
+            $value = class_exists('Illuminate\\Cookie\\CookieValuePrefix')
+                ? $encrypter->encrypt(Illuminate\Cookie\CookieValuePrefix::create($name, $encrypter->getKey()).$id, false)
+                : $encrypter->encrypt($id, false);
+            $out['cookies'][] = ['name' => $name, 'value' => $value];
+            $out['session_id'] = $id;
+        }
+        $out['headers'] = (object) $out['headers']; // {} rather than [] when empty
+        lm_out($out);
+
+    case 'logout-as':
+        // Removes what login-as created: the API token or the session.
+        if (! empty($input['token_id']) && class_exists('Laravel\\Sanctum\\PersonalAccessToken')) {
+            Laravel\Sanctum\PersonalAccessToken::query()->whereKey($input['token_id'])->delete();
+        }
+        if (! empty($input['session_id'])) {
+            app('session')->driver()->getHandler()->destroy((string) $input['session_id']);
+        }
+        lm_out(['ok' => true]);
 
     default:
         throw new InvalidArgumentException("Unknown runner command {$command}.");

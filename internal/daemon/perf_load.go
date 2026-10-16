@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 
 	"laramonster/internal/core"
+	"laramonster/internal/laravel"
 	"laramonster/internal/php"
 	"laramonster/internal/sites"
 )
@@ -26,10 +28,61 @@ import (
 // LoadOptions: Users browse Path at once, each starting a new request as
 // soon as the last one answers, for Seconds.
 type LoadOptions struct {
-	Site    string `json:"site"`
-	Path    string `json:"path"`
-	Users   int    `json:"users"`
-	Seconds int    `json:"seconds"`
+	Site    string    `json:"site"`
+	Path    string    `json:"path"`
+	Users   int       `json:"users"`
+	Seconds int       `json:"seconds"`
+	As      *LoadAuth `json:"as,omitempty"` // nil: a guest
+}
+
+// LoadAuth signs the load test's users in as one user of the app: picked
+// by ID, email, role or permission (spatie/laravel-permission), or by email
+// and password. LaraMonster creates a real session (or API token) for it
+// and removes it after the test.
+type LoadAuth struct {
+	Guard    string `json:"guard"`
+	By       string `json:"by"` // id, email, role, permission, credentials
+	Value    string `json:"value"`
+	Password string `json:"password,omitempty"`
+}
+
+// loginAs is what the runner's login-as answers.
+type loginAs struct {
+	OK      bool                             `json:"ok"`
+	User    struct{ ID, Label string }       `json:"user"`
+	Cookies []struct{ Name, Value string }   `json:"cookies"`
+	Headers map[string]string                `json:"headers"`
+	TokenID string                           `json:"token_id"`
+	Session string                           `json:"session_id"`
+	Error   *struct{ Class, Message string } `json:"error"`
+}
+
+// signIn creates the session or token a load test sends, and returns a
+// function that removes it again.
+func signIn(ctx context.Context, s sites.Site, a *LoadAuth) (loginAs, func(), error) {
+	var res loginAs
+	_, inst, err := laravelSite(s.Name)
+	if err != nil {
+		return res, nil, err
+	}
+	raw, err := laravel.Run(ctx, inst, s.Path, "login-as", a, time.Minute)
+	if err != nil {
+		return res, nil, err
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return res, nil, err
+	}
+	if !res.OK {
+		msg := "the sign-in failed"
+		if res.Error != nil {
+			msg = res.Error.Message
+		}
+		return res, nil, errors.New(msg)
+	}
+	cleanup := func() {
+		_, _ = laravel.Run(context.Background(), inst, s.Path, "logout-as", map[string]string{"token_id": res.TokenID, "session_id": res.Session}, time.Minute)
+	}
+	return res, cleanup, nil
 }
 
 // LoadPoint is one half-second of a load test, for the chart.
@@ -61,9 +114,11 @@ type LoadResult struct {
 	MaxMS       float64        `json:"max_ms"`
 	PeakCPU     float64        `json:"peak_cpu"`
 	PeakMemMB   float64        `json:"peak_mem_mb"`
-	MaxWorkers  int            `json:"max_workers"`  // pm.max_children
-	PeakBusy    int            `json:"peak_busy"`    //
-	WorkersFull bool           `json:"workers_full"` // requests had to wait for a free worker
+	MaxWorkers  int            `json:"max_workers"`     // pm.max_children
+	PeakBusy    int            `json:"peak_busy"`       //
+	WorkersFull bool           `json:"workers_full"`    // requests had to wait for a free worker
+	As          string         `json:"as,omitempty"`    // the user the requests were signed in as
+	Guard       string         `json:"guard,omitempty"` //
 	Series      []LoadPoint    `json:"series"`
 	Findings    []string       `json:"findings"`
 }
@@ -89,6 +144,19 @@ func (rt *Runtime) runLoadTest(ctx context.Context, o LoadOptions, j *core.Job) 
 		return res, errors.New("that path isn't a valid address")
 	}
 	res.URL, res.Users, res.Statuses = u.String(), o.Users, map[string]int{}
+
+	// Signed in: every request carries the user's session cookie (or token).
+	var auth loginAs
+	if o.As != nil {
+		j.Set(-1, "Signing in")
+		var cleanup func()
+		var err error
+		if auth, cleanup, err = signIn(ctx, s, o.As); err != nil {
+			return res, fmt.Errorf("couldn't sign in: %w", err)
+		}
+		defer cleanup()
+		res.As, res.Guard = auth.User.Label, o.As.Guard
+	}
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -124,6 +192,12 @@ func (rt *Runtime) runLoadTest(ctx context.Context, o LoadOptions, j *core.Job) 
 				t0 := time.Now()
 				req, _ := http.NewRequestWithContext(runCtx, http.MethodGet, u.String(), nil)
 				req.Header.Set("User-Agent", "LaraMonster load test")
+				for _, c := range auth.Cookies {
+					req.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+				}
+				for k, v := range auth.Headers {
+					req.Header.Set(k, v)
+				}
 				resp, err := client.Do(req)
 				ms := float64(time.Since(t0).Microseconds()) / 1000
 				if runCtx.Err() != nil {
@@ -264,7 +338,14 @@ func loadFindings(r LoadResult) []string {
 		f = append(f, fmt.Sprintf("%d of %d requests failed (5xx or no answer). Check the Logs page for the errors.", r.Errors, r.Requests))
 	}
 	if r.Statuses["302"]+r.Statuses["301"] > r.Requests/2 {
-		f = append(f, "Most answers were redirects (probably to a login page): the test measured the redirect, not the page.")
+		if r.As != "" {
+			f = append(f, "Most answers were redirects even though the users were signed in as "+r.As+": the page may need a role this user lacks, a verified email, or another guard.")
+		} else {
+			f = append(f, "Most answers were redirects (probably to a login page): the test measured the redirect, not the page. Run it as a signed-in user to measure the page itself.")
+		}
+	}
+	if r.As != "" && r.Statuses["401"]+r.Statuses["403"] > r.Requests/2 {
+		f = append(f, "Most answers were 401/403: "+r.As+" isn't allowed to open this page.")
 	}
 	if r.WorkersFull || (r.MaxWorkers > 0 && r.PeakBusy >= r.MaxWorkers) {
 		f = append(f, fmt.Sprintf("All %d PHP workers were busy: further requests waited in line. That wait is part of the slow times at %d users.", r.MaxWorkers, r.Users))

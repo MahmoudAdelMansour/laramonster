@@ -306,3 +306,49 @@ func HostNames(tld string, list []sites.Site) []string {
 	}
 	return append(hosts, server.DashboardName+"."+tld, server.MailName+"."+tld)
 }
+
+// OpenEditorAt opens a file of a project at a line in the configured
+// editor. The file must be inside the project.
+func OpenEditorAt(project, file string, line int) error {
+	path := file
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(project, file)
+	}
+	path = filepath.Clean(path)
+	if rel, err := filepath.Rel(filepath.Clean(project), path); err != nil || strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("only files inside the project can be opened")
+	}
+	c, err := config.Load()
+	if err != nil {
+		return err
+	}
+	editor := c.Editor
+	if editor == "" {
+		editor = "code"
+	}
+	parts := strings.Fields(editor)
+	bin, err := exec.LookPath(parts[0])
+	if err != nil {
+		return fmt.Errorf("editor %q not found, change it in Settings", parts[0])
+	}
+	args := append([]string{}, parts[1:]...)
+	at := path
+	if line > 0 {
+		at = fmt.Sprintf("%s:%d", path, line)
+	}
+	switch name := strings.ToLower(strings.TrimSuffix(filepath.Base(parts[0]), ".exe")); {
+	case line <= 0:
+		args = append(args, path)
+	case strings.Contains(name, "code") || name == "cursor" || name == "windsurf" || name == "codium":
+		args = append(args, "-g", at)
+	case strings.Contains(name, "storm") || strings.Contains(name, "idea"):
+		args = append(args, "--line", fmt.Sprint(line), path)
+	case name == "subl" || name == "zed" || name == "atom" || name == "nova":
+		args = append(args, at)
+	case name == "vim" || name == "nvim" || name == "emacs" || name == "nano":
+		args = append(args, fmt.Sprintf("+%d", line), path)
+	default:
+		args = append(args, path)
+	}
+	return exec.Command(bin, args...).Start()
+}

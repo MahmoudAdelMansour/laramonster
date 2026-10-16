@@ -14,6 +14,11 @@ One binary gives you:
 - **`.test` domains**: a built-in DNS server, wired up via `/etc/resolver` (macOS) or systemd-resolved (Linux), or a managed hosts-file block as the fallback.
 - **Services**: MySQL/MariaDB, PostgreSQL, Redis/Valkey, Mailpit and Meilisearch. Data lives in LaraMonster's home, and each service shows a ready-made `.env` snippet.
 - **New-project wizard** (dashboard or `laramonster new`): starter kit (Laravel, React, Vue, Livewire, blank), custom domain, PHP version, database (created for you), Mail/Redis/HTTPS wiring, curated packages with **AI** support (Laravel Boost, Laravel AI, MCP, Prism…), live **Packagist search**, migrations, `npm build` and a first Git commit.
+- **Debugger** (free): pick a site and see each request, queued job and failing command with its `dump()` calls, queries (with bindings and repeated-query hints), log messages and exceptions (with the code around them, opened in your editor in one click), plus its `laravel.log`. Xdebug step debugging turns on per site, so other sites stay fast.
+- **Public links** (free): share a site at a public `https://` address through a Cloudflare quick tunnel (no account), optionally behind a username and password and for a set time. Laravel sees HTTPS and the public host, so links work. `laramonster share` does the same from the terminal.
+- **PHP extensions**: every PHP version's extensions in its settings. Windows: turn bundled ones on and off and add Xdebug, Redis, APCu, MongoDB, PCOV… with one click. System PHP: turn on installed extensions and install popular ones with your package manager. LaraMonster's own Linux/macOS builds list what's built in.
+- **Webhooks** (Pro): finds the routes that receive webhooks (Stripe, GitHub, Paddle, Shopify, Lemon Squeezy, Svix, Slack…), warns about CSRF checks and missing signing secrets, records every delivery with the app's answer, checks signatures, explains 419s, redirects and timeouts with the fix, and replays deliveries (re-signed) or sends signed test events.
+- **Load tests as a user** (Pro, Performance): pick the page from the app's routes and run the test as a guest or signed in: by user ID, email, role or permission (spatie/laravel-permission), or email and password, for any guard (sessions or Sanctum tokens).
 - **Mail inbox**: every email your apps send (SMTP or PHP `mail()`) shows up in the dashboard, with HTML, text and source views (Mailpit under the hood).
 - **Tools**: one-click installs for Composer, Node.js, PostgreSQL, Mailpit and Meilisearch (portable downloads), plus MariaDB, Redis/Valkey, Git and certutil through your package manager (pacman, apt, dnf, zypper, brew, winget, scoop).
 - **Desktop app** with a tray icon. Every color pair meets WCAG AA in light and dark mode. An optional **browser dashboard** (`laramonster dashboard on`) serves the same UI at `http://dashboard.laramonster.localhost:8080` for setups without the app; it works on phones and tablets too.
@@ -121,7 +126,7 @@ laramonster tld test && laramonster dns setup
 | | |
 |---|---|
 | **Engine** | `start [-b]` `stop` `restart` `reload` `status [--json]` `dashboard [on\|off] [--browser]` `logs [name] [-f]` |
-| **Sites** | `park [dir]` `forget [dir]` `paths` `link [name]` `unlink [name]` `sites` `open [name]` `edit [name]` `secure [name]` `unsecure [name]` `isolate <ver>` `unisolate` `new <name> [-t laravel\|blank]` |
+| **Sites** | `park [dir]` `forget [dir]` `paths` `link [name]` `unlink [name]` `sites` `open [name]` `edit [name]` `secure [name]` `unsecure [name]` `isolate <ver>` `unisolate` `new <name> [-t laravel\|blank]` `share [name] [--user u --password p] [--minutes n]` `unshare [name]` |
 | **PHP** | `php [args]` `composer [args]` `php:list` `php:available` `php:install <ver…>` `php:uninstall <ver>` `use <ver>` `which` |
 | **Services** | `services` · `service start\|stop\|restart\|enable\|disable\|install\|env\|port <name> [port]` · `tools` · `tools install <id…>` |
 | **System** | `setup` `dns status\|setup\|remove` `trust` `untrust` `autostart [on\|off]` `tld [tld]` `port [port] [--https]` |

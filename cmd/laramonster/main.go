@@ -36,7 +36,7 @@ func main() {
 	}
 	add("engine", startCmd(), stopCmd(), restartCmd(), statusCmd(), reloadCmd(), dashboardCmd(), logsCmd())
 	add("sites", parkCmd(), forgetCmd(), pathsCmd(), linkCmd(), unlinkCmd(), sitesCmd(), openCmd(), editCmd(),
-		secureCmd(true), secureCmd(false), isolateCmd(), unisolateCmd(), newCmd())
+		secureCmd(true), secureCmd(false), isolateCmd(), unisolateCmd(), newCmd(), shareCmd(), unshareCmd())
 	add("php", phpCmd(), composerCmd(), phpListCmd(), phpAvailableCmd(), phpInstallCmd(), phpUninstallCmd(), useCmd(), whichCmd())
 	add("services", servicesCmd(), serviceCmd(), toolsCmd())
 	add("system", setupCmd(), dnsCmd(), trustCmd(), untrustCmd(), autostartCmd(), tldCmd(), portCmd())

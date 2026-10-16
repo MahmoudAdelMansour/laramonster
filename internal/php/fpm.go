@@ -37,6 +37,9 @@ type Manager struct {
 	pools map[string]*pool
 	// Sendmail, when set, routes PHP's mail() (e.g. to Mailpit).
 	Sendmail string
+	// Extensions maps a version to the -d arguments that load extensions
+	// LaraMonster turns on for it (system PHP installs).
+	Extensions map[string][]string
 	// Prepend maps a version to an auto_prepend_file (LaraMonster's event
 	// agent) for pools that serve a site with event tracking on.
 	Prepend map[string]string
@@ -71,6 +74,7 @@ func (m *Manager) args(key, version string) []string {
 	if m.Sendmail != "" {
 		extra = []string{"-d", "sendmail_path=" + m.Sendmail}
 	}
+	extra = append(extra, m.Extensions[version]...)
 	if pre := m.Prepend[version]; pre != "" {
 		extra = append(extra, "-d", "auto_prepend_file="+pre)
 	}

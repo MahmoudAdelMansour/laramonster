@@ -165,12 +165,19 @@ document.addEventListener('alpine:init', () => {
     proLocked: false,
     ev: { tab: 'live', traces: [], tracking: false, loading: false, q: '', sel: null, trace: null, ix: 0, catalog: null, catLoading: false, cls: null, mode: 'form', form: {}, raw: '', running: false, result: null, exported: null },
     jb: { tab: 'jobs', data: null, loading: false, q: '', cls: null, mode: 'form', form: {}, raw: '', artisan: '', runMode: 'sync', queue: '', connection: '', delay: 0, running: false, result: null, artisanOut: null, exported: null, queues: null, qLoading: false, qConn: '', workerQueue: '', workerTries: 1, log: null, logId: '' },
+    // Debugger (free): per site, what each request did.
+    dbg: { sites: null, site: storeGet('lm.dbgSite', ''), loadingSites: false, error: '', toggling: false, tab: storeGet('lm.dbgTab', 'requests'), entries: [], loading: false,
+      q: '', filter: 'all', sel: null, entry: null, source: null, dumps: null, dumpsLoading: false, log: null, logLoading: false, logQ: '', logLevel: '' },
+    // Webhooks (Pro).
+    wh: { info: null, loading: false, error: '', list: [], sel: null, cur: null, filter: '', newPath: '', replaying: false, compose: false, sending: false, sent: null,
+      form: { route: '', path: '', provider: '', event: '', body: '' }, shareJob: null },
     mon: null,
     monError: '',
     spark: { key: '', i: -1 },
     siteFilter: storeGet('lm.siteFilter', 'all'),
     siteSort: storeGet('lm.siteSort', 'laravel'),
     panel: { open: false, name: '', tab: 'general', addr: '', mode: 'php', target: '', busy: '' },
+    share: { protect: false, user: 'guest', password: '', minutes: 480, job: null, error: '', stopping: false, viteHot: false, lastSite: '', lastPassword: '' },
     env: { loading: false, file: null, lines: [], view: 'vars', q: '', raw: '', reveal: {}, newKey: '', newVal: '', adding: false, saving: false },
     modal: null,
     addTab: 'park',
@@ -191,9 +198,11 @@ document.addEventListener('alpine:init', () => {
     fixJobs: {}, // warning key → job id of its one-click fix
     // Performance (Pro): checkup, recorded requests, load test.
     pf: { tab: storeGet('lm.pfTab', 'checkup'), checkup: null, cLoading: false, cError: '', report: null, tracking: false, rLoading: false, rError: '',
-      fixJobs: {}, explain: {}, load: { path: '/', users: 10, seconds: 15, job: null, confirm: false }, hover: { key: '', i: -1 } },
+      fixJobs: {}, explain: {}, load: { path: '/', users: 10, seconds: 15, job: null, confirm: false, signedIn: false, as: { guard: '', by: 'id', value: '', password: '' }, checked: null, checking: false },
+      hover: { key: '', i: -1 }, routes: null, routesLoading: false, combo: { open: false, ix: -1 }, auth: null, authLoading: false, authError: '' },
     // php.ini settings editor: scope "global", a version, or "site:<name>".
-    ini: { open: false, scope: '', view: null, loading: false, error: '', edits: {}, saving: false, q: '', newName: '', newVal: '' },
+    ini: { open: false, scope: '', tab: 'settings', view: null, loading: false, error: '', edits: {}, saving: false, q: '', newName: '', newVal: '' },
+    ext: { version: '', view: null, loading: false, error: '', q: '', busy: '' },
     wizardSteps: ['Name & domain', 'Stack', 'Packages', 'Review'],
     progressStages: STAGES,
     nav: [],
@@ -207,12 +216,14 @@ document.addEventListener('alpine:init', () => {
         { id: 'dashboard', label: 'Dashboard', icon: 'home', count: () => null },
         { id: 'sites', label: 'Sites', icon: 'globe', count: () => this.s?.sites.length ?? null },
         { id: 'mail', label: 'Mail', icon: 'mail', count: () => this.s?.mail.unread ? this.s.mail.unread : null, hot: () => true },
+        { id: 'debug', label: 'Debugger', icon: 'search', count: () => this.dbgExceptions().length || null, hot: () => true },
         { id: 'php', label: 'PHP', icon: 'code', group: 'Environment', count: () => this.s?.php.length ?? null },
         { id: 'services', label: 'Services', icon: 'db', count: () => this.s ? (this.runningServices() || null) : null },
         { id: 'tools', label: 'Tools', icon: 'wrench', count: () => null },
         { id: 'activity', label: 'Activity', icon: 'timeline', group: 'Pro', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
         { id: 'events', label: 'Events', icon: 'zap', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
         { id: 'jobs', label: 'Jobs & Queues', icon: 'box', count: () => this.s && !this.s.pro ? 'PRO' : null, pro: true },
+        { id: 'webhooks', label: 'Webhooks', icon: 'webhook', count: () => this.s && !this.s.pro ? 'PRO' : (this.wh.list.filter(d => (d.status >= 300 || !d.status) && Date.now() - new Date(d.at) < 3600e3).length || null), hot: () => true, pro: true },
         { id: 'performance', label: 'Performance', icon: 'gauge', count: () => this.s && !this.s.pro ? 'PRO' : (this.pf.report?.n_plus_one?.length || null), hot: () => !!this.pf.report?.n_plus_one?.length, pro: true },
         { id: 'monitor', label: 'Monitor', icon: 'activity', group: 'System', count: () => this.monAlerts() || null, hot: () => true },
         { id: 'account', label: 'Account', icon: 'user', count: () => this.acctAlert() ? '!' : null, hot: () => true },
@@ -255,6 +266,8 @@ document.addEventListener('alpine:init', () => {
         if (this.page === 'events') { this.ev.tab = 'catalog'; this.openPro('events'); }
         if (this.page === 'jobs') this.openPro('jobs');
         if (this.page === 'performance') this.openPro('performance');
+        if (this.page === 'webhooks') this.openPro('webhooks');
+        if (this.page === 'debug') this.openDebug();
         window.scrollTo(0, 0);
       };
       window.addEventListener('hashchange', route);
@@ -272,6 +285,8 @@ document.addEventListener('alpine:init', () => {
       setInterval(() => this.refresh(), 2000);
       setInterval(() => { if (this.page === 'monitor' && !this.offline) this.loadMonitor(); }, 2000);
       setInterval(() => { if (this.page === 'activity' && this.proSite && !this.offline && document.visibilityState === 'visible') this.loadTraces(true); }, 3000);
+      setInterval(() => { if (this.page === 'webhooks' && this.wh.info?.watching && !this.offline && document.visibilityState === 'visible') this.loadDeliveries(true); }, 2000);
+      setInterval(() => { if (this.page === 'debug' && this.dbgInfo()?.debugging && !this.offline && document.visibilityState === 'visible') this.pollDebug(); }, 1500);
       this.loadAccount(true);
       setInterval(() => this.loadAccount(true), 60000);
       // The nav badge: a light peek every 30 s that doesn't speed up sampling.
@@ -412,6 +427,8 @@ document.addEventListener('alpine:init', () => {
       if (this.panel.tab === 'packages') this.loadSitePackages();
       this.ini = { ...this.ini, open: false, scope: '', view: null, edits: {} };
       if (this.panel.tab === 'php') this.loadIni('site:' + site.name);
+      this.share = { ...this.share, error: '', job: null, viteHot: false };
+      if (this.panel.tab === 'share') this.loadShareInfo();
     },
     closeSitePanel() {
       if (this.envDirty() && !confirmSafe('Discard your unsaved .env changes?')) return;
@@ -423,6 +440,47 @@ document.addEventListener('alpine:init', () => {
       if (tab === 'env' && !this.env.file) this.loadEnv();
       if (tab === 'packages' && !this.sitePk.php && !this.sitePk.loading) this.loadSitePackages();
       if (tab === 'php' && this.ini.scope !== 'site:' + this.panel.name) this.loadIni('site:' + this.panel.name);
+      if (tab === 'share') this.loadShareInfo();
+    },
+
+    // ---------- public links (Share tab) ----------
+    siteShare(name) { return (this.s?.shares || []).find(l => l.site === name); },
+    shareLink() { return this.siteShare(this.panel.name); },
+    shareJob() {
+      const j = this.share.job && (this.s?.jobs || []).find(x => x.id === this.share.job);
+      return j && !(j.done && !j.error) ? j : null; // a finished link shows itself
+    },
+    async loadShareInfo() {
+      try { const r = await api('GET', '/shares?site=' + encodeURIComponent(this.panel.name)); this.share.viteHot = !!r.vite_hot; } catch { /* the form still works */ }
+    },
+    randomPassword() {
+      const a = 'abcdefghjkmnpqrstuvwxyz23456789';
+      const b = new Uint32Array(10);
+      crypto.getRandomValues(b);
+      return Array.from(b, n => a[n % a.length]).join('');
+    },
+    async startShare() {
+      this.share.error = '';
+      const site = this.panel.name;
+      try {
+        const job = await api('POST', '/shares/start', { site, protect: this.share.protect, user: this.share.user, password: this.share.password, minutes: this.share.minutes });
+        this.share.job = job.id;
+        if (this.share.protect) Object.assign(this.share, { lastSite: site, lastPassword: this.share.password });
+        await this.refresh();
+      } catch (e) { this.share.error = e.message; }
+    },
+    async stopShare() {
+      this.share.stopping = true;
+      try { await api('POST', '/shares/stop', { site: this.panel.name }); await this.refresh(); this.share.job = null; this.toast('The public link is closed', 'ok'); }
+      catch (e) { this.toast(e.message, 'err'); }
+      finally { this.share.stopping = false; }
+    },
+    untilText(t) {
+      const m = Math.round((new Date(t) - Date.now()) / 60000);
+      if (m <= 0) return 'now';
+      if (m < 60) return 'in ' + m + ' min';
+      const h = Math.floor(m / 60);
+      return 'in ' + h + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : '');
     },
     addrSuffix(site) { return site.url.split('://')[1].slice(site.name.length); },
     async saveAddress() {
@@ -830,11 +888,14 @@ document.addEventListener('alpine:init', () => {
       if (!this.s?.pro) { this.proLocked = true; return; }
       this.proLocked = false;
       if (!this.proSites) await this.loadProSites();
+      // The remembered site may have been removed or renamed since.
+      if (this.proSites && !this.proSiteInfo()) this.proSite = '';
       if (!this.proSite && this.proSites?.length) this.setProSite(this.proSites[0].name, true);
       if (!this.proSite) return;
       if (which === 'events') { this.loadTraces(); if (this.ev.tab === 'catalog') this.loadCatalog(); }
       if (which === 'jobs') { this.jb.tab === 'queues' ? this.loadQueues() : this.loadJobs(); }
       if (which === 'performance') this.pfTab(this.pf.tab);
+      if (which === 'webhooks') { this.loadWebhooks(); this.loadDeliveries(); }
     },
     async loadProSites() {
       try { this.proSites = await api('GET', '/pro/sites'); } catch (e) { this.proFail(e); }
@@ -845,7 +906,8 @@ document.addEventListener('alpine:init', () => {
       storeSet('lm.proSite', name);
       this.ev = { ...this.ev, traces: [], sel: null, trace: null, catalog: null, cls: null, result: null, exported: null };
       this.jb = { ...this.jb, data: null, cls: null, result: null, artisanOut: null, queues: null, exported: null, log: null };
-      this.pf = { ...this.pf, checkup: null, report: null, explain: {}, load: { ...this.pf.load, job: null } };
+      this.pf = { ...this.pf, checkup: null, report: null, explain: {}, load: { ...this.pf.load, job: null, checked: null, as: { guard: '', by: 'id', value: '', password: '' } }, routes: null, auth: null, authError: '' };
+      this.wh = { ...this.wh, info: null, list: [], sel: null, cur: null, sent: null, error: '' };
       if (!quiet) this.openPro(this.page === 'activity' ? 'events' : this.page);
     },
     paramInput(p) {
@@ -873,6 +935,306 @@ document.addEventListener('alpine:init', () => {
     },
     revealExport(x, folder) { api('POST', '/pro/reveal', { path: x.path, folder: !!folder }).catch(e => this.toast(e.message, 'err')); },
     errLine(e) { return e ? shortClass(e.class) + ': ' + e.message + (e.file ? ' (' + e.file + ':' + e.line + ')' : '') : ''; },
+
+    // ---------- Debugger (free) ----------
+    async openDebug() {
+      this.dbg.error = '';
+      if (!this.dbg.sites) {
+        this.dbg.loadingSites = true;
+        try { this.dbg.sites = await api('GET', '/debug/sites'); } catch (e) { this.dbg.error = e.message; return; } finally { this.dbg.loadingSites = false; }
+      }
+      if (!this.dbgInfo() && this.dbg.sites.length) this.dbg.site = (this.dbg.sites.find(x => x.debugging) || this.dbg.sites[0]).name;
+      if (this.dbgInfo()) this.dbgTab(this.dbg.tab);
+    },
+    async reloadDbgSites() {
+      try { this.dbg.sites = await api('GET', '/debug/sites'); } catch { /* keep the old list */ }
+    },
+    dbgInfo() { return (this.dbg.sites || []).find(x => x.name === this.dbg.site); },
+    setDbgSite(name) {
+      this.dbg.site = name;
+      storeSet('lm.dbgSite', name);
+      Object.assign(this.dbg, { entries: [], sel: null, entry: null, source: null, dumps: null, log: null, q: '', filter: 'all' });
+      this.dbgTab(this.dbg.tab);
+    },
+    dbgTab(tab) {
+      this.dbg.tab = tab;
+      storeSet('lm.dbgTab', tab);
+      this.loadDebug();
+      if (tab === 'dumps') this.loadDbgDumps();
+      if (tab === 'logs') this.loadDbgLog();
+    },
+    async loadDebug(quiet) {
+      if (!this.dbg.site) return;
+      if (!quiet) this.dbg.loading = true;
+      try {
+        const res = await api('GET', '/debug/entries?site=' + encodeURIComponent(this.dbg.site));
+        this.dbg.entries = res.entries;
+      } catch (e) { if (!quiet) this.dbg.error = e.message; }
+      finally { this.dbg.loading = false; }
+    },
+    // While the page is open: new requests appear on their own.
+    pollDebug() {
+      const before = this.dbg.entries[0]?.id;
+      this.loadDebug(true).then(() => {
+        if (this.dbg.entries[0]?.id === before) return;
+        if (this.dbg.tab === 'dumps') this.loadDbgDumps(true);
+      });
+      if (this.dbg.tab === 'logs') this.loadDbgLog(true);
+    },
+    async setDebugging(on) {
+      this.dbg.toggling = true;
+      try {
+        await api('POST', '/debug/toggle', { site: this.dbg.site, on });
+        await this.reloadDbgSites();
+        this.toast(on ? 'Debugging ' + this.dbg.site + '. Use the site and its requests show up here.' : 'The Debugger is off for ' + this.dbg.site, 'ok');
+      } catch (e) { this.toast(e.message, 'err'); await this.reloadDbgSites(); }
+      finally { this.dbg.toggling = false; }
+    },
+    async setDebugQuiet(quiet) {
+      try {
+        await api('POST', '/debug/quiet', { site: this.dbg.site, on: quiet });
+        await this.reloadDbgSites();
+        this.toast(quiet ? 'Dumps now only show here, not in the page' : 'Dumps show in the page and here', 'ok');
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    async setXdebug(on) {
+      this.dbg.toggling = true;
+      try {
+        await api('POST', '/debug/xdebug', { site: this.dbg.site, on });
+        await this.reloadDbgSites();
+        this.toast(on ? 'Xdebug is on for ' + this.dbg.site + ': listen on port 9003 in your editor' : 'Xdebug is off for ' + this.dbg.site, 'ok');
+      } catch (e) { this.toast(e.message, 'err'); await this.reloadDbgSites(); }
+      finally { this.dbg.toggling = false; }
+    },
+    async clearDebug() {
+      if (!confirmSafe('Delete everything the Debugger recorded for ' + this.dbg.site + '?')) return;
+      try {
+        await api('POST', '/debug/clear', { site: this.dbg.site });
+        Object.assign(this.dbg, { entries: [], entry: null, sel: null, dumps: [] });
+        this.toast('Cleared', 'ok');
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    async openDbgEntry(id) {
+      this.dbg.sel = id;
+      this.dbg.source = null;
+      try {
+        const e = await api('GET', '/debug/entry?site=' + encodeURIComponent(this.dbg.site) + '&id=' + encodeURIComponent(id));
+        this.dbg.entry = e;
+        // The code around the throw, or around the first line of the app on
+        // the way there when it was thrown inside vendor/.
+        const x = e.exception;
+        let at = x && !x.file.startsWith('vendor/') ? { file: x.file, line: x.line } : (x?.frames || []).find(f => !f.vendor);
+        if (at?.file && at.line && !at.file.startsWith('/')) {
+          api('GET', '/debug/source?site=' + encodeURIComponent(this.dbg.site) + '&file=' + encodeURIComponent(at.file) + '&line=' + at.line)
+            .then(src => { if (this.dbg.sel === id) this.dbg.source = { ...src, file: at.file, mine: at.file !== x.file }; }).catch(() => {});
+        }
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    dbgFiltered() {
+      const q = this.dbg.q.trim().toLowerCase();
+      return this.dbg.entries.filter(e => {
+        if (q && !(e.title.toLowerCase().includes(q) || (e.route || '').toLowerCase().includes(q) || (e.exception || '').toLowerCase().includes(q))) return false;
+        switch (this.dbg.filter) {
+          case 'errors': return e.failed || ['error', 'critical', 'alert', 'emergency'].includes(e.log_level);
+          case 'dumps': return e.dumps > 0;
+          case 'slow': return e.duration >= 500;
+          case 'queries': return e.query_count >= 20;
+        }
+        return true;
+      });
+    },
+    dbgMeta(e) {
+      const parts = [];
+      if (e.dumps) parts.push(e.dumps + ' dump' + (e.dumps === 1 ? '' : 's'));
+      parts.push(e.query_count + ' quer' + (e.query_count === 1 ? 'y' : 'ies'));
+      if (e.logs) parts.push(e.logs + ' log' + (e.logs === 1 ? '' : 's'));
+      if (e.route) parts.push(e.route);
+      return parts.join(' · ');
+    },
+    dbgDumpCount() { return this.dbg.entries.reduce((n, e) => n + (e.dumps || 0), 0); },
+    // The same exception (class, message, place) once, with how often it happened.
+    dbgExceptions() {
+      const groups = {};
+      for (const e of this.dbg.entries) {
+        if (!e.exception) continue;
+        const key = e.exception + '|' + (e.exc_at || '');
+        const g = groups[key] ||= { key, text: e.exception, at: e.exc_at || '', count: 0, last: e.id, when: e.started_at, where: e.title };
+        g.count++;
+      }
+      return Object.values(groups);
+    },
+    async loadDbgDumps(quiet) {
+      if (!quiet) this.dbg.dumpsLoading = true;
+      try { this.dbg.dumps = await api('GET', '/debug/dumps?site=' + encodeURIComponent(this.dbg.site)); }
+      catch (e) { if (!quiet) this.toast(e.message, 'err'); }
+      finally { this.dbg.dumpsLoading = false; }
+    },
+    async loadDbgLog(quiet) {
+      if (!quiet) this.dbg.logLoading = true;
+      try { this.dbg.log = await api('GET', '/debug/log?site=' + encodeURIComponent(this.dbg.site)); }
+      catch (e) { if (!quiet) this.toast(e.message, 'err'); }
+      finally { this.dbg.logLoading = false; }
+    },
+    async clearDbgLog() {
+      if (!confirmSafe('Empty ' + (this.dbg.log?.file || 'laravel.log') + '? Its messages are deleted.')) return;
+      try { await api('POST', '/debug/log/clear', { site: this.dbg.site }); this.loadDbgLog(); this.toast('Log emptied', 'ok'); }
+      catch (e) { this.toast(e.message, 'err'); }
+    },
+    dbgLogRows() {
+      const rank = { debug: 1, info: 2, notice: 3, warning: 4, error: 5, critical: 6, alert: 7, emergency: 8 };
+      const min = rank[this.dbg.logLevel] || 0;
+      const q = this.dbg.logQ.trim().toLowerCase();
+      return (this.dbg.log?.entries || []).filter(l => (rank[l.level] || 0) >= min && (!q || l.message.toLowerCase().includes(q) || (l.detail || '').toLowerCase().includes(q)));
+    },
+    logTone(level) {
+      if (['error', 'critical', 'alert', 'emergency'].includes(level)) return 'badge-red';
+      if (level === 'warning') return 'badge-orange';
+      if (level === 'info' || level === 'notice') return 'badge-blue';
+      return '';
+    },
+    // A query with its bindings filled in, to read (and copy) as it ran.
+    dbgSQL(q) {
+      let i = 0;
+      return q.sql.replace(/\?/g, () => {
+        if (i >= (q.bindings || []).length) return '?';
+        const b = q.bindings[i++];
+        return b === null ? 'NULL' : typeof b === 'number' || typeof b === 'boolean' ? String(b) : "'" + String(b).replace(/'/g, "''") + "'";
+      });
+    },
+    dbgRepeats(q) { return (this.dbg.entry?.queries || []).filter(x => x.sql === q.sql && x.src === q.src).length; },
+    dbgDupes() {
+      const seen = new Set();
+      return (this.dbg.entry?.queries || []).filter(q => { const k = q.sql + '|' + q.src; if (seen.has(k) || this.dbgRepeats(q) < 2) return false; seen.add(k); return true; });
+    },
+    dbgSplitSrc(src) { const i = String(src).lastIndexOf(':'); return i > 0 ? [src.slice(0, i), +src.slice(i + 1)] : [src, 0]; },
+    // The engine only opens files inside the project.
+    openInEditor(file, line) {
+      api('POST', '/debug/open', { site: this.dbg.site, file, line }).catch(e => this.toast(e.message, 'err'));
+    },
+
+    // ---------- Webhooks (Pro) ----------
+    async loadWebhooks(refresh) {
+      this.wh.loading = true;
+      this.wh.error = '';
+      try { this.wh.info = await api('GET', '/pro/webhooks?site=' + encodeURIComponent(this.proSite) + (refresh ? '&refresh=1' : '')); }
+      catch (e) { if (e.status === 402) this.proFail(e); else this.wh.error = e.message; }
+      finally { this.wh.loading = false; }
+    },
+    async loadDeliveries(quiet) {
+      try { this.wh.list = await api('GET', '/pro/webhooks/deliveries?site=' + encodeURIComponent(this.proSite)); }
+      catch (e) { if (!quiet) this.wh.error = e.message; }
+    },
+    whFiltered() {
+      return this.wh.list.filter(d => !this.wh.filter || (this.wh.filter === 'failed' ? (d.status >= 300 || !d.status || d.signature?.state === 'invalid') : d.via === 'public'));
+    },
+    async setWebhookWatch(on) {
+      try {
+        await api('POST', '/pro/webhooks/watch', { site: this.proSite, on });
+        this.wh.info.watching = on;
+        this.toast(on ? 'Recording webhooks for ' + this.proSite : 'Stopped recording webhooks for ' + this.proSite, 'ok');
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    async addWebhookPath() {
+      try {
+        await api('POST', '/pro/webhooks/paths', { site: this.proSite, path: this.wh.newPath });
+        this.wh.newPath = '';
+        await this.loadWebhooks(true);
+        this.toast('Watching it', 'ok');
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    async removeWebhookPath(path) {
+      try { await api('POST', '/pro/webhooks/paths', { site: this.proSite, path, remove: true }); await this.loadWebhooks(true); }
+      catch (e) { this.toast(e.message, 'err'); }
+    },
+    async clearDeliveries() {
+      if (!confirmSafe('Delete every recorded delivery for ' + this.proSite + '?')) return;
+      try { await api('POST', '/pro/webhooks/clear', { site: this.proSite }); this.wh.list = []; this.wh.cur = null; this.wh.sel = null; this.toast('Deliveries cleared', 'ok'); }
+      catch (e) { this.toast(e.message, 'err'); }
+    },
+    async openDelivery(id) {
+      this.wh.sel = id;
+      try { this.wh.cur = await api('GET', '/pro/webhooks/delivery?site=' + encodeURIComponent(this.proSite) + '&id=' + encodeURIComponent(id)); }
+      catch (e) { this.toast(e.message, 'err'); }
+    },
+    async replayDelivery(resign) {
+      this.wh.replaying = true;
+      try {
+        const r = await api('POST', '/pro/webhooks/replay', { site: this.proSite, id: this.wh.cur.id, resign });
+        this.toast('Replayed: the app answered ' + r.status + (r.resigned ? ' (signed again with your secret)' : ''), r.status >= 200 && r.status < 300 ? 'ok' : 'err');
+        await this.loadDeliveries(true);
+        if (this.wh.list[0]) this.openDelivery(this.wh.list[0].id);
+      } catch (e) { this.toast(e.message, 'err'); }
+      finally { this.wh.replaying = false; }
+    },
+    viaLabel(v) { return { public: 'WEB', local: 'LOCAL', replay: 'REPLAY', test: 'TEST' }[v] || v; },
+    viaText(d) { return { public: 'from the internet' + (d.remote_ip ? ' (' + d.remote_ip + ')' : ''), local: 'from this computer', replay: 'replayed by you', test: 'test event' }[d.via] || d.via; },
+    curlFor(d) {
+      const q = "'";
+      const esc = v => q + String(v).replace(/'/g, "'\\''") + q;
+      const site = this.proSiteInfo();
+      const lines = ['curl -X ' + d.method + ' ' + esc((this.wh.info?.link?.url || site?.url || '').replace(/\/$/, '') + d.path + (d.query ? '?' + d.query : ''))];
+      for (const [k, v] of Object.entries(d.headers || {})) if (!/^(cf-|x-forwarded|content-length|host|accept-encoding|x-laramonster)/i.test(k)) lines.push("  -H " + esc(k + ': ' + v.join(', ')));
+      if (d.body) lines.push('  --data-raw ' + esc(d.body));
+      return lines.join(' \\\n');
+    },
+    csrfFix(r) {
+      const except = r.uri.replace(/^\//, '').replace(/\{[^}]+\}/g, '*');
+      return this.wh.info?.laravel11
+        ? "// bootstrap/app.php\n->withMiddleware(function (Middleware $middleware) {\n    $middleware->validateCsrfTokens(except: [\n        '" + except + "',\n    ]);\n})"
+        : "// app/Http/Middleware/VerifyCsrfToken.php\nprotected $except = [\n    '" + except + "',\n];";
+    },
+    whShareJob() {
+      const j = this.wh.shareJob && (this.s?.jobs || []).find(x => x.id === this.wh.shareJob);
+      return j && !j.done ? j : null;
+    },
+    // A public link anyone can reach: providers can't log in.
+    async shareForWebhooks() {
+      try {
+        const job = await api('POST', '/shares/start', { site: this.proSite, protect: false });
+        this.wh.shareJob = job.id;
+        const wait = setInterval(async () => {
+          const j = (this.s?.jobs || []).find(x => x.id === job.id);
+          if (!j?.done) return;
+          clearInterval(wait);
+          if (j.error) this.toast(j.error, 'err');
+          await this.loadWebhooks();
+        }, 1000);
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
+    whProviders() {
+      const seen = new Map();
+      for (const x of this.wh.info?.samples || []) if (x.provider && !seen.has(x.provider)) seen.set(x.provider, { id: x.provider, name: (this.wh.info.routes.find(r => r.provider === x.provider)?.provider_name) || x.provider });
+      return [...seen.values()];
+    },
+    whEvents() { return (this.wh.info?.samples || []).filter(x => x.provider === this.wh.form.provider); },
+    composeDefaults(r) {
+      const route = r || this.wh.info?.routes?.[0];
+      this.wh.sent = null;
+      this.wh.form = { route: route?.uri || '', path: route?.uri || '', provider: route?.provider || '', event: '', body: '' };
+      this.composeEvents();
+      this.loadSample();
+    },
+    composeRoute() {
+      const r = (this.wh.info?.routes || []).find(x => x.uri === this.wh.form.route);
+      this.wh.form.path = r?.uri || '';
+      if (r && r.provider !== this.wh.form.provider) { this.wh.form.provider = r.provider || ''; this.composeEvents(); this.loadSample(); }
+    },
+    composeEvents() { this.wh.form.event = this.whEvents()[0]?.event || ''; },
+    async loadSample() {
+      try { this.wh.form.body = (await api('GET', '/pro/webhooks/sample?provider=' + encodeURIComponent(this.wh.form.provider) + '&event=' + encodeURIComponent(this.wh.form.event))).body; }
+      catch { /* keep what's typed */ }
+    },
+    whBodyValid() { try { JSON.parse(this.wh.form.body || '{}'); return true; } catch { return false; } },
+    async sendTestEvent() {
+      this.wh.sending = true;
+      this.wh.sent = null;
+      try {
+        const path = this.wh.form.route && !this.wh.form.route.includes('{') ? this.wh.form.route : this.wh.form.path;
+        this.wh.sent = await api('POST', '/pro/webhooks/send', { site: this.proSite, path, provider: this.wh.form.provider, event: this.wh.form.event, body: this.wh.form.body });
+        if (this.wh.info?.watching) { await this.loadDeliveries(true); if (this.wh.list[0]) this.openDelivery(this.wh.list[0].id); }
+      } catch (e) { this.toast(e.message, 'err'); }
+      finally { this.wh.sending = false; }
+    },
 
     // ---------- Event Tracker ----------
     async loadTraces(quiet) {
@@ -990,6 +1352,8 @@ document.addEventListener('alpine:init', () => {
       if (tab === 'checkup' && !this.pf.checkup) this.loadCheckup();
       if (tab === 'requests') this.loadPerfRequests();
       if (tab === 'load' && !this.pf.report) this.loadPerfRequests(true);
+      if (tab === 'load' && !this.pf.routes) this.loadRoutes();
+      if (tab === 'load' && this.pf.load.signedIn) this.loadAuthInfo();
     },
     async loadCheckup() {
       const site = this.proSite;
@@ -1045,12 +1409,51 @@ document.addEventListener('alpine:init', () => {
       this.loadTraces(true).then(() => this.openTrace(id));
     },
     perfRoutes() { return (this.pf.report?.routes || []).filter(r => r.route.startsWith('GET ') && !r.route.includes('{')).map(r => r.route.slice(4)); },
+    // The load test's page picker: the app's GET routes, filtered by what's typed.
+    async loadRoutes() {
+      if (this.pf.routesLoading) return;
+      this.pf.routesLoading = true;
+      try { this.pf.routes = await api('GET', '/pro/perf/routes?site=' + encodeURIComponent(this.proSite)); }
+      catch { this.pf.routes = []; }
+      finally { this.pf.routesLoading = false; }
+    },
+    loadPages(all) {
+      const list = this.pf.routes || this.perfRoutes().map(uri => ({ uri, auth: false }));
+      if (all) return list;
+      const q = (this.pf.load.path || '').trim().toLowerCase();
+      if (!q || q === '/') return list.slice(0, 60);
+      return list.filter(r => r.uri.toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q)).slice(0, 60);
+    },
+    pickLoadPage(r) {
+      this.pf.load.path = r.uri;
+      this.pf.combo.open = false;
+      if (r.auth && !this.pf.load.signedIn) { this.pf.load.signedIn = true; this.loadAuthInfo(); }
+      if (r.uri.includes('{')) this.$nextTick(() => { const el = document.getElementById('lt-page'); const i = r.uri.indexOf('{'); el?.focus(); el?.setSelectionRange(i, r.uri.indexOf('}', i) + 1); });
+    },
+    async loadAuthInfo() {
+      if (this.pf.auth || this.pf.authLoading) return;
+      this.pf.authLoading = true;
+      this.pf.authError = '';
+      try {
+        const res = await api('GET', '/pro/perf/auth?site=' + encodeURIComponent(this.proSite));
+        if (!res.ok) throw new Error(res.error?.message || 'The project failed while loading');
+        this.pf.auth = res;
+        if (!this.pf.load.as.guard) this.pf.load.as.guard = res.default || res.guards[0]?.name || '';
+      } catch (e) { this.pf.authError = e.message; }
+      finally { this.pf.authLoading = false; }
+    },
+    async checkLoadAuth() {
+      this.pf.load.checking = true;
+      try { this.pf.load.checked = await api('POST', '/pro/perf/auth/check', { site: this.proSite, ...this.pf.load.as }); }
+      catch (e) { this.pf.load.checked = { error: e.message }; }
+      finally { this.pf.load.checking = false; }
+    },
     loadJob() { const id = this.pf.load.job; return id ? (this.s?.jobs || []).find(j => j.id === id) : (this.s?.jobs || []).find(j => j.title.startsWith('Load test') && !j.done); },
     loadResult() { const j = this.loadJob(); return j?.done && !j.error ? j.result : null; },
     async startLoadTest() {
       const l = this.pf.load;
       try {
-        const job = await api('POST', '/pro/perf/load', { site: this.proSite, path: l.path.trim() || '/', users: +l.users, seconds: +l.seconds });
+        const job = await api('POST', '/pro/perf/load', { site: this.proSite, path: l.path.trim() || '/', users: +l.users, seconds: +l.seconds, as: l.signedIn ? l.as : undefined });
         this.pf.load = { ...l, job: job.id, confirm: false };
         this.refresh();
       } catch (e) { this.toast(e.message, 'err'); }
@@ -1173,6 +1576,7 @@ document.addEventListener('alpine:init', () => {
     bytes(b) {
       if (b >= 1 << 30) return (b / (1 << 30)).toFixed(1) + ' GB';
       if (b >= 1 << 20) return Math.round(b / (1 << 20)) + ' MB';
+      if (b > 0 && b < 1024) return b + ' bytes';
       return Math.max(0, Math.round(b / 1024)) + ' KB';
     },
     pct(v) { return v >= 10 || v === 0 ? Math.round(v) + '%' : v.toFixed(1) + '%'; },
@@ -1518,7 +1922,55 @@ document.addEventListener('alpine:init', () => {
     wizardSite() { return this.slug(this.wizard.f.domain || this.wizard.f.name); },
 
     // ---------- php.ini settings ----------
-    openIni(scope) { this.ini.open = true; this.loadIni(scope); },
+    openIni(scope, tab) {
+      this.ini.open = true;
+      this.ini.tab = tab || 'settings';
+      if (this.ext.version !== scope) this.ext = { ...this.ext, version: scope, view: null, error: '', q: '' };
+      this.loadIni(scope);
+      if (this.ini.tab === 'extensions') this.loadExt();
+    },
+
+    // ---------- PHP extensions (PHP → Settings → Extensions) ----------
+    async loadExt(force) {
+      if ((this.ext.view && !force) || this.ext.loading) return;
+      this.ext.loading = true;
+      this.ext.error = '';
+      try { this.ext.view = await api('GET', '/php/extensions?version=' + encodeURIComponent(this.ext.version)); }
+      catch (e) { this.ext.error = e.message; }
+      finally { this.ext.loading = false; }
+    },
+    extCatalog() {
+      const q = this.ext.q.trim().toLowerCase();
+      return (this.ext.view?.catalog || []).filter(c => !q || c.name.includes(q) || c.title.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q))
+        // What can be acted on first, then what's on, then the rest.
+        .sort((a, b) => ({ off: 0, installable: 1, on: 2, missing: 3 }[a.state] - { off: 0, installable: 1, on: 2, missing: 3 }[b.state]));
+    },
+    extRows() {
+      const q = this.ext.q.trim().toLowerCase();
+      return (this.ext.view?.exts || []).filter(e => !q || e.name.includes(q));
+    },
+    async toggleExt(name, on) {
+      this.ext.busy = name;
+      try {
+        this.ext.view = await api('POST', '/php/extensions/toggle', { version: this.ext.version, name, on });
+        this.toast(name + (on ? ' is on' : ' is off') + ' for PHP ' + this.ext.version + (name === 'xdebug' && on ? '. Turn step debugging on per site in the Debugger.' : ''), 'ok');
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); this.loadExt(true); }
+      finally { this.ext.busy = ''; }
+    },
+    extJob(name) { return (this.s?.jobs || []).find(j => j.title === 'Add ' + name + ' to PHP ' + this.ext.version && !j.done); },
+    async installExt(c) {
+      try {
+        const job = await api('POST', '/php/extensions/install', { version: this.ext.version, name: c.name });
+        const wait = setInterval(() => {
+          const j = (this.s?.jobs || []).find(x => x.id === job.id);
+          if (!j?.done) return;
+          clearInterval(wait);
+          this.loadExt(true);
+        }, 1000);
+        this.refresh();
+      } catch (e) { this.toast(e.message, 'err'); }
+    },
     closeIni() {
       if (this.iniDirty() && !confirmSafe('Discard your unsaved PHP settings?')) return;
       this.ini.open = false;

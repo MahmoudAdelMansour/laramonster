@@ -180,7 +180,22 @@ func iniArgsFor(inst php.Install, dir string) []string {
 			site = s.Name
 		}
 	}
-	return php.IniArgs(MergedIni(c, inst.Version, site))
+	return append(ExtensionArgs(c, inst), php.IniArgs(MergedIni(c, inst.Version, site))...)
+}
+
+// ExtensionArgs loads the extensions LaraMonster turns on for a system PHP
+// (and not already loaded by its own ini files).
+func ExtensionArgs(c *config.Config, inst php.Install) []string {
+	if php.KindOf(inst) != php.KindSystem {
+		return nil
+	}
+	on := map[string]bool{}
+	for n, v := range c.PHPExtensions[inst.Version] {
+		if v && !slices.Contains(inst.Exts, n) {
+			on[n] = true
+		}
+	}
+	return php.ExtArgs(on)
 }
 
 // IniRow is one setting as the editor shows it: the value PHP actually

@@ -65,3 +65,31 @@ func TestCaddyfileProxyHeaders(t *testing.T) {
 		t.Errorf("token header missing from the dashboard proxy:\n%s", cf)
 	}
 }
+
+func TestShareBlocksAdapt(t *testing.T) {
+	c := config.Default()
+	list := []sites.Site{
+		{Name: "shop", Root: "/srv/shop/public", PHP: "8.4", Enabled: true},
+		{Name: "vite", Proxy: "http://127.0.0.1:5173", Enabled: true},
+		{Name: "off", Root: "/srv/off", PHP: "8.4"},
+	}
+	ups := func(v, _ string) []string { return []string{"unix//tmp/php" + v + ".sock"} }
+	shares := []Share{
+		{Site: "shop", Port: 41001, User: "demo", Hash: "$2a$10$Y0oQ1eyrQ0SNOlqHq2c6p.Fz8F1T1mP8i7X9C1vCw8T1o1uE1yZ2a", Open: []string{"/stripe/webhook"}},
+		{Site: "vite", Port: 41002},
+		{Site: "off", Port: 41003},
+	}
+	blocks := ShareBlocks(list, ups, shares)
+	for _, want := range []string{"http://:41001", "bind 127.0.0.1", "env HTTPS on", `@locked not path "/stripe/webhook"`, "basic_auth @locked", "header_up X-Forwarded-Proto https"} {
+		if !strings.Contains(blocks, want) {
+			t.Errorf("missing %q in\n%s", want, blocks)
+		}
+	}
+	if strings.Contains(blocks, ":41003") {
+		t.Error("a switched-off site must not be shared")
+	}
+	cf := Caddyfile(c, list, ups, nil) + blocks
+	if _, _, err := caddyconfig.GetAdapter("caddyfile").Adapt([]byte(cf), nil); err != nil {
+		t.Fatalf("caddyfile does not adapt: %v\n%s", err, cf)
+	}
+}

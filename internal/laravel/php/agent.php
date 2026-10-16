@@ -314,7 +314,11 @@ if (! defined('LARAMONSTER_AGENT')) {
             try {
                 $raw = method_exists($dispatcher, 'getRawListeners') ? ($dispatcher->getRawListeners()[$name] ?? []) : [];
                 foreach ($raw as $listener) {
-                    $out[] = self::describeListener($listener);
+                    $l = self::describeListener($listener);
+                    // The Debugger's own listeners aren't the app's.
+                    if (! str_contains($l['name'], 'agent-debug.php')) {
+                        $out[] = $l;
+                    }
                 }
             } catch (Throwable) {
             }
@@ -530,6 +534,11 @@ if (! defined('LARAMONSTER_AGENT')) {
 
                 return;
             }
+            // A load test's requests are measured from outside: recording
+            // them would flood the lists and slow the page being measured.
+            if (($_SERVER['HTTP_USER_AGENT'] ?? '') === 'LaraMonster load test') {
+                return;
+            }
             $script = PHP_SAPI === 'cli' ? ($_SERVER['SCRIPT_FILENAME'] ?? '') : ($_SERVER['SCRIPT_FILENAME'] ?? '');
             $real = $script !== '' ? realpath($script) : false;
             if (! $real) {
@@ -537,6 +546,15 @@ if (! defined('LARAMONSTER_AGENT')) {
             }
             // public/index.php for web requests, artisan for commands and workers.
             $base = basename($real) === 'artisan' ? dirname($real) : dirname($real, 2);
+            // The Debugger (free): dumps, queries, logs and exceptions.
+            $debug = __DIR__.DIRECTORY_SEPARATOR.'debug.json';
+            if (is_file($debug)) {
+                $site = (json_decode((string) file_get_contents($debug), true) ?: [])[$base] ?? null;
+                if (is_array($site) && is_string($site['out'] ?? null)) {
+                    require_once __DIR__.DIRECTORY_SEPARATOR.'agent-debug.php';
+                    LaraMonsterDebugger::boot($base, $site['out'], (bool) ($site['echo'] ?? true));
+                }
+            }
             $config = __DIR__.DIRECTORY_SEPARATOR.'tracking.json';
             if (! is_file($config)) {
                 return;

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"laramonster/internal/laravel"
 	"laramonster/internal/php"
 	"laramonster/internal/sites"
+	"laramonster/internal/webhook"
 )
 
 // PerfCheck is one line of the Performance checkup.
@@ -529,6 +531,68 @@ func (rt *Runtime) registerPerf(pro func(string, apiFunc)) {
 		}
 		return explainQuery(r.Context(), s, inst, b.SQL, b.Bindings, b.Conn)
 	})
+	// The pages a load test can open: the app's GET routes.
+	pro("GET /api/pro/perf/routes", func(r *http.Request) (any, error) {
+		s, inst, err := laravelSite(r.URL.Query().Get("site"))
+		if err != nil {
+			return nil, err
+		}
+		raw, err := rt.cachedRun(r.Context(), s, inst, "routes", 30*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		var res struct {
+			Routes []webhook.Route `json:"routes"`
+		}
+		if err := json.Unmarshal(raw, &res); err != nil {
+			return nil, err
+		}
+		type page struct {
+			URI  string `json:"uri"`
+			Name string `json:"name,omitempty"`
+			Auth bool   `json:"auth"`
+		}
+		out := []page{}
+		for _, rt := range res.Routes {
+			if !slices.Contains(rt.Methods, "GET") || strings.HasPrefix(rt.URI, "/_") || strings.HasPrefix(rt.URI, "/storage/") || rt.URI == "/up" {
+				continue
+			}
+			out = append(out, page{URI: rt.URI, Name: rt.Name, Auth: rt.Auth})
+		}
+		return out, nil
+	})
+	// Who a load test can sign in as: guards, roles and permissions.
+	pro("GET /api/pro/perf/auth", func(r *http.Request) (any, error) {
+		s, inst, err := laravelSite(r.URL.Query().Get("site"))
+		if err != nil {
+			return nil, err
+		}
+		return rt.cachedRun(r.Context(), s, inst, "auth-info", 30*time.Second)
+	})
+	// Check signs in and out again, to show who the test will be.
+	pro("POST /api/pro/perf/auth/check", func(r *http.Request) (any, error) {
+		var a struct {
+			Site string `json:"site"`
+			LoadAuth
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&a); err != nil {
+			return nil, err
+		}
+		s, err := findSite(a.Site)
+		if err != nil {
+			return nil, err
+		}
+		res, cleanup, err := signIn(r.Context(), s, &a.LoadAuth)
+		if err != nil {
+			return nil, err
+		}
+		cleanup()
+		mode := "session"
+		if len(res.Headers) > 0 {
+			mode = "token"
+		}
+		return map[string]string{"user": res.User.Label, "id": res.User.ID, "mode": mode}, nil
+	})
 	pro("POST /api/pro/perf/load", func(r *http.Request) (any, error) {
 		var o LoadOptions
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&o); err != nil {
@@ -543,6 +607,9 @@ func (rt *Runtime) registerPerf(pro func(string, apiFunc)) {
 			}
 		}
 		title := fmt.Sprintf("Load test: %d users on %s%s", min(max(o.Users, 1), 200), o.Site, o.Path)
+		if o.As != nil {
+			title += " (signed in)"
+		}
 		return rt.jobs.Run(title, func(j *core.Job) error {
 			res, err := rt.runLoadTest(context.Background(), o, j)
 			if err != nil {

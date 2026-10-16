@@ -61,6 +61,8 @@
     <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
     <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></symbol>
+    <symbol id="i-webhook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/></symbol>
     <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
   </defs>
 </svg>
@@ -256,6 +258,7 @@
                 <span class="badge badge-blue" x-show="site.laravel">Laravel</span>
                 <span class="badge" x-show="site.linked && !site.proxy" title="Linked folder or custom address"><svg class="i" style="width:12px;height:12px"><use href="#i-link"/></svg>linked</span>
                 <span class="badge badge-red" x-show="site.health === 'down'" :title="site.reason">Not responding</span>
+                <button class="badge badge-green server-badge" x-show="siteShare(site.name)?.status === 'ready'" @click="openSitePanel(site, 'share')" :title="'Public at ' + siteShare(site.name)?.url"><svg class="i" style="width:12px;height:12px"><use href="#i-share"/></svg>public</button>
               </div>
               <a class="small ellipsis" style="display:block" :href="site.url" target="_blank" rel="noopener" x-text="site.url"></a>
             </div>
@@ -283,6 +286,7 @@
             <div class="col-actions actions" style="justify-content:flex-end;flex-wrap:nowrap">
               <button class="btn btn-ghost icon-btn" title="Edit .env" aria-label="Edit .env" @click="openSitePanel(site, 'env')"><svg class="i"><use href="#i-file"/></svg></button>
               <button class="btn btn-ghost icon-btn" title="Site settings" aria-label="Site settings" @click="openSitePanel(site)"><svg class="i"><use href="#i-cog"/></svg></button>
+              <button class="btn btn-ghost icon-btn" :class="{ 'is-live': siteShare(site.name)?.status === 'ready' }" :title="siteShare(site.name) ? 'Public link' : 'Share with a public link'" aria-label="Share with a public link" @click="openSitePanel(site, 'share')"><svg class="i"><use href="#i-share"/></svg></button>
               <button class="btn btn-ghost icon-btn" title="Open in browser" aria-label="Open in browser" @click="openSite(site, 'browser')"><svg class="i"><use href="#i-external"/></svg></button>
               <button class="btn btn-ghost icon-btn" title="Open in editor" aria-label="Open in editor" @click="openSite(site, 'editor')"><svg class="i"><use href="#i-code"/></svg></button>
               <button class="btn btn-danger icon-btn" title="Unlink" aria-label="Unlink" x-show="site.linked" @click="unlink(site.name)"><svg class="i"><use href="#i-trash"/></svg></button>
@@ -414,6 +418,233 @@
       </div>
     </section>
 
+    <!-- ============ DEBUGGER (free) ============ -->
+    <section x-show="page === 'debug'">
+      <div class="page-head">
+        <div><h1>Debugger</h1><p>What a site did on each request: its <code>dump()</code> calls, queries, logs and exceptions, as they happen. Nothing to install in your project.</p></div>
+        <div class="actions" x-show="dbg.sites?.length">
+          <label class="row small muted" style="gap:8px">Site
+            <select class="compact" :value="dbg.site" @change="setDbgSite($event.target.value)" aria-label="Site"><template x-for="x in dbg.sites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === dbg.site"></option></template></select>
+          </label>
+        </div>
+      </div>
+
+      <template x-if="dbg.loadingSites && !dbg.sites"><div class="stack"><div class="skeleton" style="height:72px"></div><div class="skeleton" style="height:320px"></div></div></template>
+      <div class="alert error" style="margin-bottom:16px" x-show="dbg.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="dbg.error"></div><button class="btn btn-sm btn-ghost" @click="openDebug()">Try again</button></div>
+
+      <div class="card" x-show="dbg.sites && !dbg.sites.length"><div class="empty">
+        <div class="tile-icon tone-blue"><svg class="i"><use href="#i-search"/></svg></div>
+        <h3>No Laravel sites yet</h3><p>The Debugger works on Laravel projects LaraMonster serves with its own PHP. Add one, or create a new Laravel project.</p>
+        <div class="actions" style="justify-content:center"><button class="btn" @click="openWizard()">New project</button><button class="btn btn-ghost" @click="location.hash = 'sites'">Sites</button></div>
+      </div></div>
+
+      <template x-if="dbgInfo()">
+        <div>
+          <div class="track-bar card" :class="{ on: dbgInfo().debugging }">
+            <label class="switch"><input type="checkbox" :checked="dbgInfo().debugging" :disabled="dbg.toggling" @change="setDebugging($event.target.checked)" aria-label="Debug this site"><span></span></label>
+            <div class="grow" style="min-width:220px"><b x-text="dbgInfo().debugging ? 'Debugging ' + dbg.site : 'The Debugger is off for ' + dbg.site"></b>
+              <div class="small muted" x-text="!dbgInfo().ready ? 'Run composer install in the project first: the Debugger needs its vendor folder.' : (dbgInfo().debugging ? 'Open ' + dbgInfo().url + ': every request, queued job and failing command shows up here within a second.' : 'Turn it on to record every request of this site with its dumps, queries, logs and exceptions. It only runs on your computer.')"></div></div>
+            <label class="row small" style="gap:8px" x-show="dbgInfo().debugging" title="Off: dump() output only shows here, not in the page or the JSON your API returns">
+              <span class="switch sm"><input type="checkbox" :checked="!dbgInfo().quiet" @change="setDebugQuiet(!$event.target.checked)" aria-label="Show dumps in the page too"><span></span></span> Dumps in the page too</label>
+            <button class="btn btn-ghost btn-sm" x-show="dbgInfo().debugging" @click="openURL(dbgInfo().url)"><svg class="i"><use href="#i-external"/></svg> Open site</button>
+            <button class="btn btn-danger btn-sm" x-show="dbg.entries.length" @click="clearDebug()"><svg class="i"><use href="#i-trash"/></svg> Clear</button>
+          </div>
+
+          <!-- Xdebug: step debugging for this site only -->
+          <div class="card xdebug-row">
+            <span class="tile-icon" :class="dbgInfo().xdebug_on ? 'tone-green' : 'tone-blue'"><svg class="i"><use href="#i-code"/></svg></span>
+            <div class="grow" style="min-width:220px">
+              <b>Step debugging with Xdebug</b>
+              <div class="small muted" x-show="!dbgInfo().xdebug">PHP <span x-text="dbgInfo().php"></span> doesn't have Xdebug yet. Add it once in its extensions, then turn it on per site.</div>
+              <div class="small muted" x-show="dbgInfo().xdebug && !dbgInfo().xdebug_on">Pause on breakpoints in your editor. On for this site only, so your other sites stay fast.</div>
+              <div class="small" x-show="dbgInfo().xdebug_on">On: start listening in your editor (port <b>9003</b>), set a breakpoint and reload the page. <span class="muted">VS Code: PHP Debug extension → “Listen for Xdebug”. PhpStorm: the phone icon “Start listening”.</span></div>
+            </div>
+            <button class="btn btn-sm" x-show="!dbgInfo().xdebug" @click="openIni(dbgInfo().php, 'extensions')"><svg class="i"><use href="#i-plus"/></svg> Add Xdebug</button>
+            <label class="switch" x-show="dbgInfo().xdebug"><input type="checkbox" :checked="dbgInfo().xdebug_on" :disabled="dbg.toggling" @change="setXdebug($event.target.checked)" aria-label="Xdebug for this site"><span></span></label>
+          </div>
+
+          <nav class="page-tabs" role="tablist" aria-label="Debugger">
+            <button role="tab" :aria-selected="dbg.tab === 'requests'" :class="{ on: dbg.tab === 'requests' }" @click="dbgTab('requests')"><svg class="i"><use href="#i-activity"/></svg> Requests <span class="count" x-show="dbg.entries.length" x-text="dbg.entries.length"></span></button>
+            <button role="tab" :aria-selected="dbg.tab === 'dumps'" :class="{ on: dbg.tab === 'dumps' }" @click="dbgTab('dumps')"><svg class="i"><use href="#i-code"/></svg> Dumps <span class="count" x-show="dbgDumpCount()" x-text="dbgDumpCount()"></span></button>
+            <button role="tab" :aria-selected="dbg.tab === 'exceptions'" :class="{ on: dbg.tab === 'exceptions' }" @click="dbgTab('exceptions')"><svg class="i"><use href="#i-alert"/></svg> Exceptions <span class="count hot" x-show="dbgExceptions().length" x-text="dbgExceptions().length"></span></button>
+            <button role="tab" :aria-selected="dbg.tab === 'logs'" :class="{ on: dbg.tab === 'logs' }" @click="dbgTab('logs')"><svg class="i"><use href="#i-logs"/></svg> laravel.log</button>
+          </nav>
+
+          <!-- Requests -->
+          <div class="card pro-shell" :class="{ reading: !!dbg.entry }" x-show="dbg.tab === 'requests'">
+            <div class="pro-list">
+              <div class="mail-tools">
+                <div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Filter by URL, route or error…" x-model="dbg.q" aria-label="Filter requests"></div>
+              </div>
+              <div class="chips dbg-filters">
+                <template x-for="f in [['all', 'All'], ['errors', 'Errors'], ['dumps', 'With dumps'], ['slow', 'Slow'], ['queries', '20+ queries']]" :key="f[0]">
+                  <button type="button" class="chip-btn" :class="{ on: dbg.filter === f[0] }" @click="dbg.filter = f[0]" x-text="f[1]"></button>
+                </template>
+              </div>
+              <div class="mail-items">
+                <template x-if="dbg.loading && !dbg.entries.length"><div style="padding:16px" class="stack"><div class="skeleton" style="width:60%"></div><div class="skeleton"></div><div class="skeleton" style="width:80%"></div></div></template>
+                <template x-for="e in dbgFiltered()" :key="e.id">
+                  <button class="trace-item" :class="{ sel: dbg.sel === e.id, failed: e.failed }" @click="openDbgEntry(e.id)">
+                    <div class="row" style="gap:8px"><span class="kind-chip" :class="'k-' + e.kind" x-text="e.kind === 'request' ? (e.method || 'HTTP') : kindLabel(e.kind)"></span><span class="ellipsis grow trace-title" x-text="e.kind === 'request' ? e.title.replace(/^\S+ /, '') : e.title"></span><span class="badge" :class="statusTone(e)" x-text="statusText(e)"></span></div>
+                    <div class="trace-meta"><span class="ellipsis" :class="{ 'err-text': e.exception }" x-text="e.exception ? e.exception : dbgMeta(e)"></span><span x-text="ms(e.duration) + ' · ' + ago(e.started_at)" style="flex:none"></span></div>
+                  </button>
+                </template>
+                <div class="empty" x-show="!dbg.loading && !dbgFiltered().length">
+                  <template x-if="dbg.q || dbg.filter !== 'all'"><div><h3>Nothing matches</h3><button class="btn btn-ghost btn-sm" @click="dbg.q = ''; dbg.filter = 'all'">Show all</button></div></template>
+                  <template x-if="!dbg.q && dbg.filter === 'all'"><div><div class="tile-icon tone-blue"><svg class="i"><use href="#i-activity"/></svg></div>
+                    <h3 x-text="dbgInfo().debugging ? 'Waiting for requests' : 'Nothing recorded yet'"></h3>
+                    <p x-text="dbgInfo().debugging ? 'Open ' + dbg.site + ' in your browser; each request appears here.' : 'Turn the Debugger on above, then use the site.'"></p>
+                    <button class="btn btn-sm" x-show="!dbgInfo().debugging && dbgInfo().ready" @click="setDebugging(true)">Turn it on</button></div></template>
+                </div>
+              </div>
+            </div>
+
+            <div class="pro-detail">
+              <template x-if="!dbg.entry"><div class="empty" style="margin:auto"><h3>Pick a request</h3><p>Its dumps, queries, logs and any exception appear here.</p></div></template>
+              <template x-if="dbg.entry">
+                <div class="pro-detail-in scroll-pad">
+                  <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+                    <button class="btn btn-ghost btn-sm back-btn" @click="dbg.entry = null; dbg.sel = null"><svg class="i"><use href="#i-back"/></svg> Requests</button>
+                    <button class="btn btn-ghost btn-sm" x-show="dbg.entry.kind === 'request' && dbg.entry.method === 'GET'" @click="openURL(dbgInfo().url.replace(/\/$/, '') + dbg.entry.uri)"><svg class="i"><use href="#i-external"/></svg> Open again</button>
+                  </div>
+                  <h2 style="font-size:18px;margin-top:4px;word-break:break-all" x-text="dbg.entry.title"></h2>
+                  <div class="trace-facts">
+                    <span class="badge" :class="statusTone({ status: dbg.entry.status, failed: !!dbg.entry.exception })" x-text="statusText(dbg.entry)"></span>
+                    <span x-text="ms(dbg.entry.duration)"></span>
+                    <span x-text="dbg.entry.query_count + ' quer' + (dbg.entry.query_count === 1 ? 'y' : 'ies') + (dbg.entry.query_count ? ' · ' + ms(dbg.entry.query_ms) : '')"></span>
+                    <span x-text="bytes(dbg.entry.memory)"></span>
+                    <span class="mono" x-show="dbg.entry.route" x-text="dbg.entry.route"></span>
+                    <span x-show="dbg.entry.user" x-text="'user #' + dbg.entry.user"></span>
+                    <span x-show="!dbg.entry.user && dbg.entry.kind === 'request'">guest</span>
+                  </div>
+                  <div class="small muted mono ellipsis" x-show="dbg.entry.action" x-text="dbg.entry.action" style="margin-top:4px"></div>
+
+                  <!-- exception -->
+                  <template x-if="dbg.entry.exception">
+                    <div class="dbg-exc">
+                      <div class="dbg-exc-head"><span class="badge badge-red" x-text="shortClass(dbg.entry.exception.class)"></span><b x-text="dbg.entry.exception.message"></b></div>
+                      <button class="btn btn-link small mono" @click="openInEditor(dbg.entry.exception.file, dbg.entry.exception.line)" x-text="dbg.entry.exception.file + ':' + dbg.entry.exception.line"></button>
+                      <button class="btn btn-link small mono" x-show="dbg.source?.mine" @click="openInEditor(dbg.source.file, dbg.source.line)" x-text="'Your code: ' + dbg.source?.file + ':' + dbg.source?.line"></button>
+                      <template x-if="dbg.source"><pre class="code-excerpt"><template x-for="(l, i) in dbg.source.lines" :key="i"><span :class="{ hit: dbg.source.start + i === dbg.source.line }"><i x-text="dbg.source.start + i"></i><span x-text="l + '\n'"></span></span></template></pre></template>
+                      <div x-show="dbg.entry.exception.previous" class="small muted" x-text="'Caused by ' + shortClass(dbg.entry.exception.previous?.class) + ': ' + dbg.entry.exception.previous?.message"></div>
+                      <details class="dbg-frames" x-show="dbg.entry.exception.frames?.length">
+                        <summary class="small">Stack trace <span class="muted" x-text="'(' + (dbg.entry.exception.frames || []).filter(f => !f.vendor).length + ' in your code)'"></span></summary>
+                        <template x-for="(f, i) in dbg.entry.exception.frames || []" :key="i">
+                          <button class="dbg-frame" :class="{ vendor: f.vendor }" @click="openInEditor(f.file, f.line)"><span class="mono ellipsis" x-text="f.call || '—'"></span><span class="mono small muted ellipsis" x-text="f.file + ':' + f.line"></span></button>
+                        </template>
+                      </details>
+                    </div>
+                  </template>
+
+                  <!-- dumps -->
+                  <template x-if="(dbg.entry.dumps || []).length">
+                    <div><div class="sub-head" x-text="'Dumps (' + dbg.entry.dumps.length + ')'"></div>
+                      <template x-for="(d, i) in dbg.entry.dumps" :key="i">
+                        <div class="dump">
+                          <div class="dump-head"><button class="btn btn-link small mono" x-show="d.src" @click="openInEditor(...dbgSplitSrc(d.src))" x-text="d.src"></button><span class="small muted" x-text="(d.label ? d.label + ' · ' : '') + d.type + ' · at ' + ms(d.at)"></span><button class="btn btn-ghost icon-btn sm" @click="copy(d.text)" aria-label="Copy dump" title="Copy"><svg class="i"><use href="#i-copy"/></svg></button></div>
+                          <pre class="dump-text" x-text="d.text"></pre>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- queries -->
+                  <div class="sub-head row" style="justify-content:space-between">
+                    <span x-text="'Queries (' + dbg.entry.query_count + ')'"></span>
+                    <span class="small" style="text-transform:none;letter-spacing:0;font-weight:500" x-show="dbgDupes().length"><span class="badge badge-orange" x-text="dbgDupes().length + ' repeated'"></span></span>
+                  </div>
+                  <div class="small muted" x-show="!dbg.entry.query_count">No database queries.</div>
+                  <div class="ran-list" x-show="(dbg.entry.queries || []).length">
+                    <template x-for="(q, i) in dbg.entry.queries || []" :key="i">
+                      <div class="ran-row dbg-q" :class="{ slow: q.ms >= 100 }">
+                        <code class="grow mono dbg-sql" x-text="dbgSQL(q)"></code>
+                        <span class="badge badge-orange" x-show="dbgRepeats(q) > 1" x-text="dbgRepeats(q) + '×'" title="The same query from the same line: an N+1 problem?"></span>
+                        <span class="small" :class="q.ms >= 100 ? 'err-text' : 'muted'" x-text="ms(q.ms)"></span>
+                        <button class="btn btn-link small mono dbg-src" x-show="q.src" @click="openInEditor(...dbgSplitSrc(q.src))" x-text="q.src"></button>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="small muted" x-show="dbg.entry.query_count > (dbg.entry.queries || []).length" x-text="'Showing the first ' + (dbg.entry.queries || []).length + '.'"></div>
+
+                  <!-- logs -->
+                  <template x-if="(dbg.entry.logs || []).length">
+                    <div><div class="sub-head" x-text="'Log messages (' + dbg.entry.logs.length + ')'"></div>
+                      <div class="ran-list">
+                        <template x-for="(l, i) in dbg.entry.logs" :key="i">
+                          <div class="ran-row"><span class="badge" :class="logTone(l.level)" x-text="l.level"></span><span class="grow" style="word-break:break-word" x-text="l.message"></span><code class="ran-out mono" x-show="l.context" x-text="l.context"></code></div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Dumps: every dump() of the site, newest first -->
+          <div x-show="dbg.tab === 'dumps'" class="stack">
+            <template x-if="dbg.dumpsLoading && !dbg.dumps"><div class="stack"><div class="skeleton" style="height:90px"></div><div class="skeleton" style="height:90px"></div></div></template>
+            <template x-for="(d, i) in dbg.dumps || []" :key="d.entry + i">
+              <div class="card dump">
+                <div class="dump-head">
+                  <button class="btn btn-link small mono" x-show="d.dump.src" @click="openInEditor(...dbgSplitSrc(d.dump.src))" x-text="d.dump.src"></button>
+                  <span class="small muted ellipsis grow" x-text="(d.dump.label ? d.dump.label + ' · ' : '') + d.dump.type + ' · ' + d.title + ' · ' + ago(d.started_at)"></span>
+                  <button class="btn btn-ghost btn-sm" @click="dbgTab('requests'); openDbgEntry(d.entry)">Request</button>
+                  <button class="btn btn-ghost icon-btn sm" @click="copy(d.dump.text)" aria-label="Copy dump" title="Copy"><svg class="i"><use href="#i-copy"/></svg></button>
+                </div>
+                <pre class="dump-text" x-text="d.dump.text"></pre>
+              </div>
+            </template>
+            <div class="card" x-show="dbg.dumps && !dbg.dumps.length"><div class="empty">
+              <div class="tile-icon tone-blue"><svg class="i"><use href="#i-code"/></svg></div>
+              <h3>No dumps yet</h3>
+              <p>Call <code>dump($value)</code> or <code>dd($value)</code> anywhere in <span x-text="dbg.site"></span>; each one shows up here with the line it came from.</p>
+              <button class="btn btn-sm" x-show="!dbgInfo().debugging && dbgInfo().ready" @click="setDebugging(true)">Turn the Debugger on</button>
+            </div></div>
+          </div>
+
+          <!-- Exceptions, grouped -->
+          <div x-show="dbg.tab === 'exceptions'" class="card">
+            <template x-for="x in dbgExceptions()" :key="x.key">
+              <button class="dbg-exc-row" @click="dbgTab('requests'); openDbgEntry(x.last)">
+                <span class="badge badge-red" x-text="x.count + '×'"></span>
+                <div class="grow" style="min-width:0"><b class="ellipsis" style="display:block" x-text="x.text"></b><span class="small muted mono ellipsis" style="display:block" x-text="x.at"></span></div>
+                <span class="small muted" style="flex:none" x-text="'last ' + ago(x.when) + ' · ' + x.where"></span>
+              </button>
+            </template>
+            <div class="empty" x-show="!dbgExceptions().length">
+              <div class="tile-icon tone-green"><svg class="i"><use href="#i-check"/></svg></div>
+              <h3>No exceptions</h3><p x-text="dbg.entries.length ? 'None of the recorded requests failed.' : 'Exceptions your app throws or reports show up here, grouped, with the code around them.'"></p>
+            </div>
+          </div>
+
+          <!-- laravel.log -->
+          <div x-show="dbg.tab === 'logs'" class="card">
+            <div class="mail-tools">
+              <div class="search grow"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search the log…" x-model="dbg.logQ" aria-label="Search the log"></div>
+              <select class="compact" x-model="dbg.logLevel" aria-label="Level"><option value="">All levels</option><option value="error">Errors and worse</option><option value="warning">Warnings and worse</option><option value="info">Info and worse</option></select>
+              <button class="btn btn-ghost icon-btn" @click="loadDbgLog()" aria-label="Reload" title="Reload"><svg class="i" :class="{ spin: dbg.logLoading }"><use href="#i-refresh"/></svg></button>
+              <button class="btn btn-ghost btn-sm" x-show="dbg.log?.entries.length" @click="clearDbgLog()"><svg class="i"><use href="#i-trash"/></svg> Empty</button>
+            </div>
+            <div class="small muted mono ellipsis" style="padding:0 16px 8px" x-show="dbg.log?.file" x-text="dbg.log?.file"></div>
+            <template x-if="dbg.logLoading && !dbg.log"><div style="padding:16px" class="stack"><div class="skeleton"></div><div class="skeleton" style="width:70%"></div></div></template>
+            <template x-for="(l, i) in dbgLogRows()" :key="l.time + i">
+              <details class="log-entry">
+                <summary><span class="badge" :class="logTone(l.level)" x-text="l.level"></span><span class="grow ellipsis" x-text="l.message"></span><span class="small muted" style="flex:none" x-text="l.time"></span></summary>
+                <pre class="joblog" x-show="l.detail" x-text="l.detail"></pre>
+                <div class="small muted" x-show="!l.detail" style="padding:0 0 10px">No context.</div>
+              </details>
+            </template>
+            <div class="empty" x-show="dbg.log && !dbgLogRows().length">
+              <h3 x-text="dbg.log?.entries.length ? 'Nothing matches' : (dbg.log?.file ? 'The log is empty' : 'No laravel.log yet')"></h3>
+              <p x-show="!dbg.log?.entries.length">Laravel writes here with <code>Log::info()</code>, <code>logger()</code> and for every reported exception.</p>
+              <button class="btn btn-ghost btn-sm" x-show="dbg.log?.entries.length" @click="dbg.logQ = ''; dbg.logLevel = ''">Show all</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </section>
+
     <!-- ============ PHP ============ -->
     <section x-show="page === 'php'">
       <div class="page-head">
@@ -459,6 +690,7 @@
             <div class="actions">
               <button class="btn btn-sm" x-show="p.managed && p.exts?.length && !['intl', 'mbregex', 'gdjpeg'].every(e => p.exts.includes(e))" :disabled="jobBusy('Install PHP ' + p.version)" @click="installPHP(p.version)">Update build</button>
               <button class="btn btn-sm btn-ghost" @click="openIni(p.version)"><svg class="i"><use href="#i-cog"/></svg> Settings</button>
+              <button class="btn btn-sm btn-ghost" @click="openIni(p.version, 'extensions')"><svg class="i"><use href="#i-box"/></svg> Extensions</button>
               <button class="btn btn-sm btn-ghost" x-show="p.version !== s.default_php" @click="setDefault(p.version)">Make default</button>
               <button class="btn btn-sm btn-danger" x-show="p.managed" @click="uninstallPHP(p.version)">Uninstall</button>
             </div>
@@ -698,6 +930,8 @@
           <div class="card-pad stack" style="gap:12px">
             <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-zap"/></svg></span><div><b>Event Tracker</b><div class="small muted">Every event your app fires: its data, the listeners that ran, what it caused. Dispatch events yourself and export the flow as a PDF guide.</div></div></div>
             <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-box"/></svg></span><div><b>Jobs & Queues</b><div class="small muted">What each job does and when it runs, in plain words. Run jobs, retry failures, start workers.</div></div></div>
+            <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-gauge"/></svg></span><div><b>Performance</b><div class="small muted">Checkup with one-click fixes, N+1 and slow queries, and load tests as a guest or a signed-in user.</div></div></div>
+            <div class="pro-feature"><span class="tile-icon tone-blue"><svg class="i"><use href="#i-webhook"/></svg></span><div><b>Webhooks</b><div class="small muted">Every delivery with the app's answer, signature checks, fixes for 419s and timeouts, replays and signed test events.</div></div></div>
             <div class="small muted">Everything else in LaraMonster stays free. One computer at a time; signing in elsewhere signs this one out.</div>
             <div class="actions"><button class="btn btn-orange btn-sm" x-show="!acct?.pro" @click="openURL(acct?.buy_url)">Get a license</button><button class="btn btn-ghost btn-sm" @click="openURL(acct?.account_url)">Your licenses</button></div>
           </div>
@@ -706,13 +940,13 @@
     </section>
 
     <!-- ============ PRO LOCK (shared by Events and Jobs) ============ -->
-    <template x-if="['activity', 'events', 'jobs', 'performance'].includes(page) && (proLocked || (s && !s.pro))">
+    <template x-if="['activity', 'events', 'jobs', 'performance', 'webhooks'].includes(page) && (proLocked || (s && !s.pro))">
       <section>
-        <div class="page-head"><div><h1 x-text="{ activity: 'Activity', events: 'Events', jobs: 'Jobs & Queues', performance: 'Performance' }[page]"></h1><p>Part of LaraMonster Pro.</p></div></div>
+        <div class="page-head"><div><h1 x-text="{ activity: 'Activity', events: 'Events', jobs: 'Jobs & Queues', performance: 'Performance', webhooks: 'Webhooks' }[page]"></h1><p>Part of LaraMonster Pro.</p></div></div>
         <div class="card"><div class="empty" style="padding:56px 24px">
-          <div class="tile-icon tone-blue"><svg class="i"><use :href="{ activity: '#i-timeline', events: '#i-zap', jobs: '#i-box', performance: '#i-gauge' }[page]"/></svg></div>
-          <h3 x-text="acct?.state === 'replaced' ? 'Signed in on another device' : acct?.state === 'expired' ? 'Your license has expired' : acct?.state === 'offline' ? 'Connect to check your license' : ({ activity: 'See every request, command and job, with its events', events: 'Every event your app has, and who listens', jobs: 'Know what every job does, and when', performance: 'Find what makes your app slow, and fix it' }[page])"></h3>
-          <p x-text="['replaced', 'expired', 'offline', 'revoked', 'admin'].includes(acct?.state) ? acct.message : ({ activity: 'Activity records what each request, command and queued job did: the events it fired, their data, listeners and timing.', events: 'Events lists your app’s event classes with their listeners; dispatch them with your own data and export guides as PDF.', jobs: 'Jobs & Queues explains each job in plain words, shows its schedule, runs it, and manages queues and workers.', performance: 'Performance checks your caches, PHP and drivers with one-click fixes, finds N+1 and slow queries and costly packages, and load-tests pages with as many users as you choose.' }[page])"></p>
+          <div class="tile-icon tone-blue"><svg class="i"><use :href="{ activity: '#i-timeline', events: '#i-zap', jobs: '#i-box', performance: '#i-gauge', webhooks: '#i-webhook' }[page]"/></svg></div>
+          <h3 x-text="acct?.state === 'replaced' ? 'Signed in on another device' : acct?.state === 'expired' ? 'Your license has expired' : acct?.state === 'offline' ? 'Connect to check your license' : ({ activity: 'See every request, command and job, with its events', events: 'Every event your app has, and who listens', jobs: 'Know what every job does, and when', performance: 'Find what makes your app slow, and fix it', webhooks: 'See every webhook your app receives, and why one failed' }[page])"></h3>
+          <p x-text="['replaced', 'expired', 'offline', 'revoked', 'admin'].includes(acct?.state) ? acct.message : ({ activity: 'Activity records what each request, command and queued job did: the events it fired, their data, listeners and timing.', events: 'Events lists your app’s event classes with their listeners; dispatch them with your own data and export guides as PDF.', jobs: 'Jobs & Queues explains each job in plain words, shows its schedule, runs it, and manages queues and workers.', performance: 'Performance checks your caches, PHP and drivers with one-click fixes, finds N+1 and slow queries and costly packages, and load-tests pages with as many users as you choose.', webhooks: 'Webhooks finds the routes that receive them, records each delivery with the app’s answer, checks signatures, explains 419s and timeouts, and replays or sends signed test events.' }[page])"></p>
           <div class="actions" style="justify-content:center">
             <button class="btn" @click="location.hash = 'account'" x-text="acct?.state === 'expired' ? 'Account' : 'Sign in'"></button>
             <button class="btn btn-ghost" @click="openURL(acct?.buy_url)" x-text="acct?.state === 'expired' ? 'Renew' : 'Get a license'"></button>
@@ -1074,19 +1308,81 @@
       <div x-show="proSite && pf.tab === 'load'" class="stack">
         <div class="card card-pad">
           <div class="load-form">
-            <label class="field"><span>Page</span>
-              <input type="text" class="mono" list="pf-routes" x-model="pf.load.path" placeholder="/" spellcheck="false" :disabled="!!loadJob() && !loadJob().done">
-              <datalist id="pf-routes"><template x-for="r in perfRoutes()" :key="r"><option :value="r"></option></template></datalist>
-              <small x-text="(proSiteInfo()?.url || '') + (pf.load.path || '/')"></small></label>
+            <div class="field combo" @click.outside="pf.combo.open = false" @keydown.escape.stop="pf.combo.open = false">
+              <label for="lt-page">Page</label>
+              <div class="combo-box" :class="{ open: pf.combo.open }">
+                <input id="lt-page" type="text" class="mono" role="combobox" aria-autocomplete="list" :aria-expanded="pf.combo.open" aria-controls="lt-routes" autocomplete="off"
+                  x-model="pf.load.path" placeholder="/" spellcheck="false" :disabled="!!loadJob() && !loadJob().done" :class="{ invalid: pf.load.path.includes('{') }"
+                  @focus="pf.combo.open = true; pf.combo.ix = -1" @input="pf.combo.open = true; pf.combo.ix = -1"
+                  @keydown.down.prevent="pf.combo.open = true; pf.combo.ix = Math.min(pf.combo.ix + 1, loadPages().length - 1)"
+                  @keydown.up.prevent="pf.combo.ix = Math.max(pf.combo.ix - 1, -1)"
+                  @keydown.enter.prevent="if (pf.combo.open && loadPages()[pf.combo.ix]) pickLoadPage(loadPages()[pf.combo.ix]); else pf.combo.open = false">
+                <button type="button" class="combo-toggle" tabindex="-1" aria-label="Show the app's pages" @click="pf.combo.open = !pf.combo.open; $el.previousElementSibling.focus()" :disabled="!!loadJob() && !loadJob().done"><svg class="i"><use href="#i-back"/></svg></button>
+                <div class="combo-list" id="lt-routes" role="listbox" x-show="pf.combo.open" x-transition.opacity.duration.100ms>
+                  <template x-if="pf.routesLoading && !pf.routes"><div class="combo-note">Reading the app's routes…</div></template>
+                  <template x-for="(r, i) in loadPages()" :key="r.uri">
+                    <button type="button" role="option" class="combo-item" :class="{ on: pf.combo.ix === i }" :aria-selected="pf.combo.ix === i" @mouseenter="pf.combo.ix = i" @click="pickLoadPage(r)">
+                      <span class="mono ellipsis grow" x-text="r.uri"></span>
+                      <span class="small muted ellipsis" x-show="r.name" x-text="r.name"></span>
+                      <span class="badge badge-orange" x-show="r.auth">login</span>
+                    </button>
+                  </template>
+                  <div class="combo-note" x-show="pf.routes && !loadPages().length" x-text="pf.load.path ? 'No route matches: LaraMonster opens ' + pf.load.path + ' as typed.' : 'No GET routes found.'"></div>
+                </div>
+              </div>
+              <small x-show="!pf.load.path.includes('{')" x-text="(proSiteInfo()?.url || '') + (pf.load.path || '/')"></small>
+              <small class="err-text" x-show="pf.load.path.includes('{')">Replace the {parameters} with real values, e.g. /posts/1.</small>
+            </div>
             <label class="field"><span>Users at once</span>
               <input type="number" min="1" max="200" x-model.number="pf.load.users" :disabled="!!loadJob() && !loadJob().done">
               <div class="chips" style="margin-top:4px"><template x-for="n in [1, 10, 25, 50, 100]" :key="n"><button type="button" class="chip-btn" :class="{ on: +pf.load.users === n }" @click="pf.load.users = n" x-text="n"></button></template></div></label>
             <label class="field"><span>For</span>
               <select x-model.number="pf.load.seconds" :disabled="!!loadJob() && !loadJob().done"><option :value="10">10 seconds</option><option :value="15">15 seconds</option><option :value="30">30 seconds</option><option :value="60">1 minute</option></select></label>
           </div>
-          <div class="alert info small" style="margin-top:12px"><svg class="i"><use href="#i-info"/></svg><div>Each user loads the page again as soon as it answers. These are real GET requests to your local site, so its code runs (and writes, if the page writes). Logged-in pages answer with a redirect to the login page.</div></div>
+
+          <!-- who the users are -->
+          <div class="load-as">
+            <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center">
+              <b class="sp-label" style="margin:0">Visit as</b>
+              <div class="tabs" role="radiogroup" aria-label="Visit as">
+                <button type="button" role="radio" :aria-checked="!pf.load.signedIn" :class="{ on: !pf.load.signedIn }" @click="pf.load.signedIn = false">Guest</button>
+                <button type="button" role="radio" :aria-checked="pf.load.signedIn" :class="{ on: pf.load.signedIn }" @click="pf.load.signedIn = true; loadAuthInfo()">Signed-in user</button>
+              </div>
+              <span class="small muted" x-show="!pf.load.signedIn && loadPages(true).find(r => r.uri === pf.load.path)?.auth">This page needs a login: as a guest you'd measure the redirect.</span>
+            </div>
+            <template x-if="pf.load.signedIn">
+              <div class="stack" style="gap:10px;margin-top:12px">
+                <template x-if="pf.authLoading && !pf.auth"><div class="skeleton" style="height:40px"></div></template>
+                <div class="alert error small" x-show="pf.authError"><svg class="i"><use href="#i-alert"/></svg><div x-text="pf.authError"></div></div>
+                <template x-if="pf.auth">
+                  <div class="load-as-grid">
+                    <label class="field">Guard
+                      <select x-model="pf.load.as.guard" @change="pf.load.checked = null"><template x-for="g in pf.auth.guards" :key="g.name"><option :value="g.name" x-text="g.name + ' (' + g.driver + ')'" :selected="g.name === pf.load.as.guard"></option></template></select></label>
+                    <label class="field">Pick the user by
+                      <select x-model="pf.load.as.by" @change="pf.load.as.value = ''; pf.load.checked = null">
+                        <option value="id">User ID</option><option value="email">Email</option>
+                        <option value="role" x-show="pf.auth.spatie">Role</option><option value="permission" x-show="pf.auth.spatie">Permission</option>
+                        <option value="credentials">Email and password</option></select></label>
+                    <label class="field" x-show="['id', 'email', 'credentials'].includes(pf.load.as.by)"><span x-text="pf.load.as.by === 'id' ? 'User ID' : 'Email'"></span>
+                      <input type="text" x-model="pf.load.as.value" @input="pf.load.checked = null" :inputmode="pf.load.as.by === 'id' ? 'numeric' : 'email'" :placeholder="pf.load.as.by === 'id' ? '1' : 'jane@example.com'" autocomplete="off" spellcheck="false"></label>
+                    <label class="field" x-show="pf.load.as.by === 'role'">Role
+                      <select x-model="pf.load.as.value" @change="pf.load.checked = null"><option value="">Choose…</option><template x-for="r in pf.auth.roles" :key="r.name + r.guard"><option :value="r.name" x-text="r.name + (r.guard !== pf.load.as.guard ? ' (' + r.guard + ')' : '')"></option></template></select></label>
+                    <label class="field" x-show="pf.load.as.by === 'permission'">Permission
+                      <select x-model="pf.load.as.value" @change="pf.load.checked = null"><option value="">Choose…</option><template x-for="r in pf.auth.permissions" :key="r.name + r.guard"><option :value="r.name" x-text="r.name"></option></template></select></label>
+                    <label class="field" x-show="pf.load.as.by === 'credentials'">Password
+                      <input type="password" x-model="pf.load.as.password" @input="pf.load.checked = null" autocomplete="off"></label>
+                  </div>
+                </template>
+                <div class="row" style="gap:10px;flex-wrap:wrap" x-show="pf.auth">
+                  <button type="button" class="btn btn-ghost btn-sm" :disabled="!pf.load.as.value || pf.load.checking" @click="checkLoadAuth()"><svg class="i" :class="{ spin: pf.load.checking }"><use :href="pf.load.checking ? '#i-loader' : '#i-user'"/></svg> Check who this is</button>
+                  <span class="small" :class="pf.load.checked?.error ? 'err-text' : 'ok-text'" x-show="pf.load.checked" x-text="pf.load.checked?.error || ('Signs in as ' + pf.load.checked?.user + ' with a ' + (pf.load.checked?.mode === 'token' ? 'temporary API token' : 'real session'))"></span>
+                  <span class="small muted" x-show="!pf.load.checked">LaraMonster signs this user in for the test without the login form, then removes the session or token afterwards.<span x-show="pf.load.as.by === 'credentials'"> The password is only used to sign in and isn't saved.</span></span>
+                </div>
+              </div>
+            </template>
+          </div>
           <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px">
-            <button class="btn" @click="startLoadTest()" :disabled="!!loadJob() && !loadJob().done"><svg class="i"><use href="#i-play"/></svg> <span x-text="'Run with ' + (pf.load.users || 1) + ' user' + (+pf.load.users === 1 ? '' : 's')"></span></button>
+            <button class="btn" @click="startLoadTest()" :disabled="(!!loadJob() && !loadJob().done) || pf.load.path.includes('{') || (pf.load.signedIn && (!pf.load.as.value || (pf.load.as.by === 'credentials' && !pf.load.as.password)))"><svg class="i"><use href="#i-play"/></svg> <span x-text="'Run with ' + (pf.load.users || 1) + ' user' + (+pf.load.users === 1 ? '' : 's')"></span></button>
           </div>
         </div>
 
@@ -1100,7 +1396,7 @@
 
         <template x-if="loadResult()">
           <div class="stack">
-            <div class="small muted" x-text="loadResult().users + ' users on ' + loadResult().url + ' for ' + loadResult().seconds + ' s · ' + loadResult().requests + ' requests'"></div>
+            <div class="small muted" x-text="loadResult().users + ' users on ' + loadResult().url + ' for ' + loadResult().seconds + ' s · ' + loadResult().requests + ' requests' + (loadResult().as ? ' · signed in as ' + loadResult().as : ' · as guests')"></div>
             <div class="grid grid-4">
               <div class="card kpi"><span class="kpi-label">Requests per second</span><b class="kpi-value" x-text="loadResult().rps"></b><span class="kpi-sub" x-text="loadResult().errors ? loadResult().errors + ' failed' : 'no errors'"></span></div>
               <div class="card kpi"><span class="kpi-label">Typical response</span><b class="kpi-value" x-text="ms(loadResult().p50)"></b><span class="kpi-sub" x-text="'average ' + ms(loadResult().avg_ms)"></span></div>
@@ -1133,6 +1429,158 @@
         </template>
         <div class="card" x-show="!loadJob() && !loadResult()"><div class="empty"><div class="tile-icon tone-blue"><svg class="i"><use href="#i-activity"/></svg></div><h3>How many users can this page take?</h3><p>Pick a page and a number of users. LaraMonster sends their requests and watches the site's PHP while they browse.</p></div></div>
       </div>
+    </section>
+
+    <!-- ============ WEBHOOKS (Pro) ============ -->
+    <section x-show="page === 'webhooks' && s?.pro && !proLocked">
+      <div class="page-head">
+        <div><h1>Webhooks</h1><p>The routes your app receives webhooks on, everything that arrives, and why a delivery failed. Replay one, or send a test event signed like the real thing.</p></div>
+        <div class="actions" x-show="proSites?.length">
+          <label class="row small muted" style="gap:8px">Site
+            <select class="compact" :value="proSite" @change="setProSite($event.target.value)" aria-label="Site"><template x-for="x in proSites" :key="x.name"><option :value="x.name" x-text="x.name" :selected="x.name === proSite"></option></template></select>
+          </label>
+        </div>
+      </div>
+      <div class="alert error" style="margin-bottom:16px" x-show="proError"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="proError"></div><button class="btn btn-sm btn-ghost" @click="openPro('webhooks')">Try again</button></div>
+      <div class="card" x-show="proSites && !proSites.length"><div class="empty"><h3>No Laravel sites yet</h3><p>Webhooks works on Laravel projects LaraMonster serves.</p><button class="btn" @click="location.hash = 'sites'">Sites</button></div></div>
+
+      <template x-if="proSite && wh.loading && !wh.info"><div class="stack"><div class="skeleton" style="height:72px"></div><div class="skeleton" style="height:140px"></div><div class="skeleton" style="height:240px"></div></div></template>
+      <div class="alert error" x-show="wh.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow" x-text="wh.error"></div><button class="btn btn-sm btn-ghost" @click="loadWebhooks(true)">Try again</button></div>
+
+      <template x-if="proSite && wh.info">
+        <div class="stack">
+          <div class="track-bar card" :class="{ on: wh.info.watching }" style="margin-bottom:0">
+            <label class="switch"><input type="checkbox" :checked="wh.info.watching" @change="setWebhookWatch($event.target.checked)" aria-label="Record webhooks"><span></span></label>
+            <div class="grow" style="min-width:220px"><b x-text="wh.info.watching ? 'Recording webhooks for ' + proSite : 'Recording is off for ' + proSite"></b>
+              <div class="small muted" x-text="wh.info.watching ? 'Every request to the routes below is kept with the app’s answer, whether it comes from your computer or through the public link.' : 'Turn it on to keep every request that reaches the routes below, with the app’s answer.'"></div></div>
+            <button class="btn btn-ghost btn-sm" @click="wh.compose = true; composeDefaults()"><svg class="i"><use href="#i-play"/></svg> Send a test event</button>
+            <button class="btn btn-danger btn-sm" x-show="wh.list.length" @click="clearDeliveries()"><svg class="i"><use href="#i-trash"/></svg> Clear</button>
+          </div>
+
+          <!-- public address -->
+          <div class="card card-pad wh-public" :class="{ on: wh.info.link?.status === 'ready' }">
+            <span class="tile-icon" :class="wh.info.link?.status === 'ready' ? 'tone-green' : 'tone-blue'"><svg class="i"><use href="#i-share"/></svg></span>
+            <template x-if="wh.info.link?.status === 'ready'">
+              <div class="grow" style="min-width:0"><b>Providers can reach <span x-text="proSite"></span></b>
+                <div class="small muted">Use these URLs in the provider's dashboard. They work while the public link is open<span x-show="wh.info.link.expires" x-text="' (ends ' + untilText(wh.info.link.expires) + ')'"></span>.</div>
+                <div class="mono small ellipsis" x-text="wh.info.link.url"></div></div>
+            </template>
+            <template x-if="wh.info.link?.status !== 'ready'">
+              <div class="grow" style="min-width:220px"><b>Providers on the internet can't reach your computer yet</b>
+                <div class="small muted">Open a public link and paste its webhook URLs in Stripe, GitHub or any provider. Webhook URLs stay reachable even if you protect the rest of the site with a password.</div></div>
+            </template>
+            <div class="actions">
+              <button class="btn btn-sm" x-show="wh.info.link?.status !== 'ready'" :disabled="!!whShareJob()" @click="shareForWebhooks()"><svg class="i" :class="{ spin: !!whShareJob() }"><use :href="whShareJob() ? '#i-loader' : '#i-share'"/></svg> <span x-text="whShareJob() ? (whShareJob().detail || 'Starting…') : 'Get a public link'"></span></button>
+              <button class="btn btn-ghost btn-sm" @click="openSitePanel(s.sites.find(x => x.name === proSite), 'share')" x-text="wh.info.link ? 'Link settings' : 'More options'"></button>
+            </div>
+          </div>
+
+          <!-- routes -->
+          <div class="card">
+            <div class="card-head"><h2>Webhook routes</h2><span class="sub" x-text="wh.info.routes.length ? 'Found in routes/ · POST routes named or handled like a webhook' : ''"></span>
+              <button class="btn btn-ghost icon-btn" style="margin-left:auto" @click="loadWebhooks(true)" title="Read the routes again" aria-label="Read the routes again"><svg class="i" :class="{ spin: wh.loading }"><use href="#i-refresh"/></svg></button></div>
+            <template x-for="r in wh.info.routes" :key="r.uri">
+              <div class="wh-route">
+                <div class="row" style="gap:8px;flex-wrap:wrap;min-width:0">
+                  <span class="badge" :class="r.provider ? 'badge-blue' : ''" x-text="r.provider_name || 'Unknown sender'"></span>
+                  <code class="mono wh-uri" x-text="'POST ' + r.uri"></code>
+                  <span class="small muted mono ellipsis" x-show="r.name || r.action !== 'Closure'" x-text="r.name || shortClass(r.action)"></span>
+                  <span class="badge" x-show="r.custom">added by you</span>
+                </div>
+                <div class="wh-checks">
+                  <span class="wh-check bad" x-show="r.csrf"><svg class="i"><use href="#i-alert"/></svg> CSRF check on: deliveries get 419 <button class="btn btn-link small" @click="copy(csrfFix(r)); toast('Copied the fix: paste it in ' + (wh.info.laravel11 ? 'bootstrap/app.php' : 'VerifyCsrfToken.php'), 'ok')">Copy fix</button></span>
+                  <span class="wh-check good" x-show="!r.csrf"><svg class="i"><use href="#i-check"/></svg> No CSRF check</span>
+                  <span class="wh-check bad" x-show="r.auth"><svg class="i"><use href="#i-alert"/></svg> Needs a logged-in user</span>
+                  <span class="wh-check" :class="r.secret_set ? 'good' : 'warn'" x-show="r.secret_env"><svg class="i"><use :href="r.secret_set ? '#i-check' : '#i-alert'"/></svg> <span x-text="r.secret_set ? r.secret_env + ' is set' : r.secret_env + ' isn’t in .env'"></span>
+                    <button class="btn btn-link small" x-show="!r.secret_set" @click="openSitePanel(s.sites.find(x => x.name === proSite), 'env')">Add it</button></span>
+                </div>
+                <div class="actions wh-route-actions">
+                  <button class="btn btn-ghost btn-sm" x-show="wh.info.link?.status === 'ready'" @click="copy(wh.info.link.url + r.uri)"><svg class="i"><use href="#i-copy"/></svg> Copy public URL</button>
+                  <button class="btn btn-ghost btn-sm" @click="wh.compose = true; composeDefaults(r)"><svg class="i"><use href="#i-play"/></svg> Send test</button>
+                  <button class="btn btn-ghost icon-btn" x-show="r.custom" @click="removeWebhookPath(r.uri)" :aria-label="'Stop watching ' + r.uri" title="Stop watching"><svg class="i"><use href="#i-trash"/></svg></button>
+                </div>
+              </div>
+            </template>
+            <div class="empty" x-show="!wh.info.routes.length" style="padding:28px 20px">
+              <div class="tile-icon tone-blue"><svg class="i"><use href="#i-webhook"/></svg></div>
+              <h3>No webhook routes found</h3>
+              <p>LaraMonster looks for POST routes with webhook, hook, callback or a provider's name in their URL, name or controller, and for Cashier, Paddle and spatie/laravel-webhook-client. Add yours below if it's named differently.</p>
+            </div>
+            <div class="wh-add">
+              <input type="text" class="mono" x-model="wh.newPath" placeholder="/payments/callback" aria-label="Path to watch" spellcheck="false" @keydown.enter="addWebhookPath()">
+              <button class="btn btn-ghost btn-sm" :disabled="!wh.newPath.trim()" @click="addWebhookPath()"><svg class="i"><use href="#i-plus"/></svg> Watch this URL</button>
+            </div>
+          </div>
+
+          <!-- deliveries -->
+          <div class="card pro-shell" :class="{ reading: !!wh.cur }">
+            <div class="pro-list">
+              <div class="mail-tools"><b style="color:var(--title)">Deliveries</b><span class="small muted grow" x-text="wh.list.length ? wh.list.length + ' kept' : ''"></span>
+                <select class="compact" x-model="wh.filter" aria-label="Show"><option value="">All</option><option value="failed">Failed</option><option value="public">From the internet</option></select></div>
+              <div class="mail-items">
+                <template x-for="d in whFiltered()" :key="d.id">
+                  <button class="trace-item" :class="{ sel: wh.sel === d.id, failed: d.status >= 300 || !d.status }" @click="openDelivery(d.id)">
+                    <div class="row" style="gap:8px"><span class="kind-chip" :class="'via-' + d.via" x-text="viaLabel(d.via)"></span><span class="ellipsis grow trace-title" x-text="d.event || d.path"></span><span class="badge" :class="d.status >= 200 && d.status < 300 ? 'badge-green' : 'badge-red'" x-text="d.status || '—'"></span></div>
+                    <div class="trace-meta"><span class="ellipsis" x-text="(d.provider_name ? d.provider_name + ' · ' : '') + d.path + (d.signature && d.signature.state === 'invalid' ? ' · bad signature' : '')"></span><span x-text="ms(d.ms) + ' · ' + ago(d.at)" style="flex:none"></span></div>
+                  </button>
+                </template>
+                <div class="empty" x-show="!whFiltered().length">
+                  <template x-if="wh.filter"><div><h3>Nothing matches</h3><button class="btn btn-ghost btn-sm" @click="wh.filter = ''">Show all</button></div></template>
+                  <template x-if="!wh.filter"><div><div class="tile-icon tone-blue"><svg class="i"><use href="#i-inbox"/></svg></div>
+                    <h3 x-text="wh.info.watching ? 'Waiting for deliveries' : 'Nothing recorded yet'"></h3>
+                    <p x-text="wh.info.watching ? 'Trigger an event in the provider, or send a test event.' : 'Turn recording on above.'"></p>
+                    <button class="btn btn-sm" x-show="wh.info.watching" @click="wh.compose = true; composeDefaults()">Send a test event</button>
+                    <button class="btn btn-sm" x-show="!wh.info.watching" @click="setWebhookWatch(true)">Start recording</button></div></template>
+                </div>
+              </div>
+            </div>
+            <div class="pro-detail">
+              <template x-if="!wh.cur"><div class="empty" style="margin:auto"><h3>Pick a delivery</h3><p>See what arrived, whether its signature is right, and what the app answered.</p></div></template>
+              <template x-if="wh.cur">
+                <div class="pro-detail-in scroll-pad">
+                  <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+                    <button class="btn btn-ghost btn-sm back-btn" @click="wh.cur = null; wh.sel = null"><svg class="i"><use href="#i-back"/></svg> Deliveries</button>
+                    <div class="actions">
+                      <button class="btn btn-sm" :disabled="wh.replaying" @click="replayDelivery(wh.cur.signature && wh.cur.signature.state !== 'no_secret' && wh.cur.signature.state !== 'unsupported')"><svg class="i" :class="{ spin: wh.replaying }"><use :href="wh.replaying ? '#i-loader' : '#i-refresh'"/></svg> Replay</button>
+                      <button class="btn btn-ghost btn-sm" x-show="wh.cur.signature && wh.cur.signature.state !== 'no_secret' && wh.cur.signature.state !== 'unsupported'" :disabled="wh.replaying" @click="replayDelivery(false)" title="Exactly as it arrived, with its original signature">Replay as is</button>
+                      <button class="btn btn-ghost btn-sm" @click="copy(curlFor(wh.cur))"><svg class="i"><use href="#i-copy"/></svg> cURL</button>
+                    </div>
+                  </div>
+                  <h2 style="font-size:18px;margin-top:6px;word-break:break-all" x-text="(wh.cur.event || 'Delivery') + (wh.cur.provider_name ? ' · ' + wh.cur.provider_name : '')"></h2>
+                  <div class="trace-facts">
+                    <span class="badge" :class="wh.cur.status >= 200 && wh.cur.status < 300 ? 'badge-green' : 'badge-red'" x-text="wh.cur.status || 'no answer'"></span>
+                    <span class="mono" x-text="wh.cur.method + ' ' + wh.cur.path + (wh.cur.query ? '?' + wh.cur.query : '')"></span>
+                    <span x-text="ms(wh.cur.ms)"></span><span x-text="viaText(wh.cur)"></span><span x-text="new Date(wh.cur.at).toLocaleString()"></span>
+                  </div>
+                  <template x-for="(g, i) in wh.cur.diagnosis || []" :key="i">
+                    <div class="alert small" :class="{ success: g.tone === 'good', error: g.tone === 'bad' }" style="margin-top:10px">
+                      <svg class="i"><use :href="g.tone === 'good' ? '#i-check' : '#i-alert'"/></svg>
+                      <div class="grow" style="min-width:0"><b x-text="g.title"></b> <span x-text="g.text"></span>
+                        <template x-if="g.fix"><div class="wh-fix"><pre class="joblog" x-text="g.fix"></pre><button class="btn btn-sm btn-ghost" @click="copy(g.fix)"><svg class="i"><use href="#i-copy"/></svg> Copy</button></div></template>
+                        <button class="btn btn-link small" x-show="wh.cur.status >= 500" @click="location.hash = 'debug'">Open the Debugger</button></div>
+                    </div>
+                  </template>
+                  <template x-if="wh.cur.signature">
+                    <div class="wh-sig" :class="wh.cur.signature.state">
+                      <svg class="i"><use :href="wh.cur.signature.state === 'valid' ? '#i-shield' : '#i-alert'"/></svg>
+                      <div class="grow"><b x-text="{ valid: 'Signature valid', invalid: 'Signature doesn’t match', no_secret: 'Signature not checked', no_signature: 'Not signed', unsupported: 'Signature not checked' }[wh.cur.signature.state]"></b>
+                        <div class="small" x-text="wh.cur.signature.detail"></div></div>
+                    </div>
+                  </template>
+                  <div class="sub-head row" style="justify-content:space-between">Request body <span class="small" style="text-transform:none;letter-spacing:0;font-weight:500" x-text="bytes(wh.cur.body_size) + (wh.cur.truncated ? ' (first MB kept)' : '')"></span></div>
+                  <template x-if="wh.cur.pretty"><div class="jtree" x-html="jsonTree(JSON.parse(wh.cur.pretty))"></div></template>
+                  <pre class="dump-text wh-raw" x-show="!wh.cur.pretty" x-text="wh.cur.body || '(empty)'"></pre>
+                  <details class="wh-headers"><summary class="sub-head" style="cursor:pointer" x-text="'Request headers (' + Object.keys(wh.cur.headers || {}).length + ')'"></summary>
+                    <table class="table wh-table"><tbody><template x-for="[k, v] in Object.entries(wh.cur.headers || {})" :key="k"><tr><td class="mono" x-text="k"></td><td class="mono" x-text="v.join(', ')"></td></tr></template></tbody></table>
+                  </details>
+                  <div class="sub-head">The app answered</div>
+                  <pre class="dump-text wh-raw" x-text="wh.cur.resp_body || '(empty body)'"></pre>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
     </section>
 
     <section x-show="page === 'jobs' && s?.pro && !proLocked">
@@ -1551,7 +1999,67 @@
       <div style="min-width:0"><h2 id="ini-title" x-text="iniTitle()"></h2><div class="small muted">php.ini values, without editing the file</div></div>
       <button class="btn btn-ghost icon-btn" @click="closeIni()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
     </div>
-    <div class="modal-body card-pad">
+    <div class="sp-tabs" x-show="/^\d+\.\d+$/.test(ini.scope)">
+      <div class="tabs" role="tablist">
+        <button role="tab" :aria-selected="ini.tab === 'settings'" :class="{ on: ini.tab === 'settings' }" @click="ini.tab = 'settings'">Settings <span class="count" x-show="iniChangeCount()" x-text="iniChangeCount()"></span></button>
+        <button role="tab" :aria-selected="ini.tab === 'extensions'" :class="{ on: ini.tab === 'extensions' }" @click="ini.tab = 'extensions'; loadExt()">Extensions <span class="count" x-show="ext.view" x-text="ext.view?.exts.filter(e => e.state !== 'off').length"></span></button>
+      </div>
+    </div>
+    <!-- Extensions of one PHP version -->
+    <div class="modal-body card-pad" x-show="ini.tab === 'extensions' && /^\d+\.\d+$/.test(ini.scope)">
+      <template x-if="ext.loading && !ext.view"><div class="stack"><div class="skeleton" style="height:48px"></div><div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:200px"></div></div></template>
+      <div class="alert error" x-show="ext.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="ext.error"></div><button class="btn btn-link small" @click="loadExt(true)">Try again</button></div></div>
+      <template x-if="ext.view">
+        <div class="stack">
+          <div class="ini-intro small muted">
+            <span x-show="ext.view.kind === 'static'">LaraMonster's PHP <b x-text="ext.view.full"></b> is one file with <b x-text="ext.view.exts.length"></b> extensions built in. They're always on, and this build can't load others. For an extension it lacks, install PHP <span x-text="ext.view.version"></span> with your package manager: LaraMonster finds it, and you can pick it per site.</span>
+            <span x-show="ext.view.kind === 'windows'">Turn extensions on and off, or add popular ones. Changes apply to sites and commands on PHP <span x-text="ext.view.version"></span> right away (PHP restarts in a second).</span>
+            <span x-show="ext.view.kind === 'system'">Your system's PHP <span x-text="ext.view.full"></span>. What its own configuration loads stays as it is; LaraMonster can turn on its other installed extensions<span x-show="ext.view.manager" x-text="' and install popular ones with ' + ext.view.manager"></span>.</span>
+          </div>
+
+          <div class="search"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Find an extension…" x-model="ext.q" aria-label="Find an extension"></div>
+
+          <div x-show="extCatalog().length">
+            <div class="section-title">Popular</div>
+            <div class="ext-grid">
+              <template x-for="c in extCatalog()" :key="c.name">
+                <div class="ext-card" :class="c.state">
+                  <div class="row" style="gap:8px;justify-content:space-between;align-items:flex-start">
+                    <div style="min-width:0"><b x-text="c.title"></b> <code class="small" x-show="c.title.toLowerCase() !== c.name" x-text="c.name"></code></div>
+                    <span class="badge badge-green" x-show="c.state === 'on'">On</span>
+                  </div>
+                  <div class="small muted" x-text="c.desc"></div>
+                  <div class="small muted ext-note" x-show="c.note && c.state === 'missing'" x-text="c.note"></div>
+                  <div class="ext-actions">
+                    <template x-if="c.state === 'off'"><button class="btn btn-sm" :disabled="ext.busy === c.name" @click="toggleExt(c.name, true)"><svg class="i" :class="{ spin: ext.busy === c.name }"><use :href="ext.busy === c.name ? '#i-loader' : '#i-power'"/></svg> Turn on</button></template>
+                    <template x-if="c.state === 'installable'">
+                      <button class="btn btn-sm" :disabled="!!extJob(c.name)" @click="installExt(c)"><svg class="i" :class="{ spin: !!extJob(c.name) }"><use :href="extJob(c.name) ? '#i-loader' : '#i-download'"/></svg>
+                        <span x-text="extJob(c.name) ? (extJob(c.name).detail || 'Adding…') : (c.method === 'download' ? 'Add' : 'Install with ' + ext.view.manager)"></span></button></template>
+                    <span class="small muted mono" x-show="c.state === 'installable' && c.pkg" x-text="c.pkg"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title" x-text="'All extensions (' + extRows().length + ')'"></div>
+            <div class="ext-list">
+              <template x-for="e in extRows()" :key="e.name">
+                <div class="ext-row">
+                  <code class="grow" x-text="e.name"></code>
+                  <span class="badge" :class="{ 'badge-blue': e.source === 'laramonster' }" x-text="{ 'built-in': 'built in', 'php.ini': 'php.ini', laramonster: 'by LaraMonster' }[e.source] || 'installed, off'"></span>
+                  <label class="switch sm" :title="e.toggle ? '' : e.why"><input type="checkbox" :checked="e.state !== 'off'" :disabled="!e.toggle || ext.busy === e.name" @change="toggleExt(e.name, $event.target.checked)" :aria-label="e.name"><span></span></label>
+                </div>
+              </template>
+              <div class="empty" style="padding:20px" x-show="!extRows().length"><h3>No extension matches</h3><button class="btn btn-ghost btn-sm" @click="ext.q = ''">Show all</button></div>
+            </div>
+            <div class="small muted" style="margin-top:8px" x-show="ext.view.dir" x-text="'Extension files: ' + ext.view.dir"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="modal-body card-pad" x-show="ini.tab !== 'extensions' || !/^\d+\.\d+$/.test(ini.scope)">
         <template x-if="ini.loading && !ini.view"><div class="stack"><div class="skeleton" style="height:40px"></div><div class="skeleton" style="height:64px"></div><div class="skeleton" style="height:64px"></div></div></template>
         <div class="alert error" x-show="ini.error"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><div x-text="ini.error"></div><button class="btn btn-link small" @click="loadIni(ini.scope)">Try again</button></div></div>
         <template x-if="ini.view">
@@ -1615,12 +2123,42 @@
           </div>
         </template>
     </div>
-    <div class="modal-foot">
+    <div class="modal-foot" x-show="ini.tab !== 'extensions' || !/^\d+\.\d+$/.test(ini.scope)">
       <span class="small" :class="iniDirty() ? '' : 'muted'" x-text="iniDirty() ? iniChangeCount() + ' unsaved change' + (iniChangeCount() === 1 ? '' : 's') + (iniLayer() === 'site' ? '' : ' · saving restarts PHP') : 'All changes saved'"></span>
       <div class="actions">
         <button class="btn btn-ghost" x-show="iniDirty()" @click="ini.edits = {}">Discard</button>
         <button class="btn" :disabled="!iniDirty() || ini.saving" @click="saveIni()"><svg class="i spin" x-show="ini.saving"><use href="#i-loader"/></svg> Save</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WEBHOOK TEST EVENT ============ -->
+<div class="modal-back" x-show="wh.compose" x-cloak @click.self="wh.compose = false" x-transition.opacity @keydown.escape.window="wh.compose && (wh.compose = false)">
+  <div class="card modal" role="dialog" aria-modal="true" aria-labelledby="whc-title" style="max-width:640px">
+    <div class="card-head"><div><h2 id="whc-title">Send a test event</h2><div class="small muted" x-text="'To ' + proSite + ' on this computer, signed with the secret from .env when there is one'"></div></div>
+      <button class="btn btn-ghost icon-btn" @click="wh.compose = false" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body card-pad stack">
+      <label class="field">Route
+        <select x-model="wh.form.route" @change="composeRoute()"><template x-for="r in wh.info?.routes || []" :key="r.uri"><option :value="r.uri" x-text="r.uri + (r.provider_name ? ' · ' + r.provider_name : '')"></option></template><option value="">Another path…</option></select></label>
+      <label class="field" x-show="!wh.form.route || wh.form.route.includes('{')">Path
+        <input type="text" class="mono" x-model="wh.form.path" placeholder="/webhooks/stripe" spellcheck="false" :class="{ invalid: wh.form.path.includes('{') }">
+        <small x-show="wh.form.path.includes('{')">Replace the {parameters} with real values.</small></label>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label class="field" style="flex:1 1 180px">Sender
+          <select x-model="wh.form.provider" @change="composeEvents(); loadSample()"><option value="">Generic JSON</option><template x-for="p in whProviders()" :key="p.id"><option :value="p.id" x-text="p.name"></option></template></select></label>
+        <label class="field" style="flex:1 1 220px">Event
+          <select x-model="wh.form.event" @change="loadSample()"><template x-for="e in whEvents()" :key="e.event"><option :value="e.event" x-text="e.label + ' (' + e.event + ')'"></option></template></select></label>
+      </div>
+      <label class="field">Body (JSON) <textarea class="mono code-input" rows="10" x-model="wh.form.body" spellcheck="false" :class="{ invalid: !whBodyValid() }"></textarea>
+        <small x-show="!whBodyValid()" class="err-text">This isn't valid JSON.</small></label>
+      <div class="alert small" :class="wh.sent.status >= 200 && wh.sent.status < 300 ? 'success' : 'error'" x-show="wh.sent"><svg class="i"><use :href="wh.sent?.status >= 200 && wh.sent?.status < 300 ? '#i-check' : '#i-alert'"/></svg>
+        <div class="grow"><b x-text="'The app answered ' + wh.sent?.status"></b><span x-text="wh.sent?.signed ? ' · signed with your secret' : ' · not signed (no secret in .env for this sender)'"></span>. <span x-show="wh.info?.watching">It's in Deliveries with the details.</span><span x-show="!wh.info?.watching">Turn recording on to see the details.</span></div></div>
+    </div>
+    <div class="modal-foot">
+      <span class="small muted">Runs your webhook code for real, on this computer.</span>
+      <div class="actions"><button class="btn btn-ghost" @click="wh.compose = false">Close</button>
+        <button class="btn" :disabled="wh.sending || !whBodyValid() || !(wh.form.route || wh.form.path) || (wh.form.route || wh.form.path).includes('{') && wh.form.path.includes('{')" @click="sendTestEvent()"><svg class="i" :class="{ spin: wh.sending }"><use :href="wh.sending ? '#i-loader' : '#i-play'"/></svg> Send</button></div>
     </div>
   </div>
 </div>
@@ -1642,6 +2180,7 @@
         <button role="tab" :aria-selected="panel.tab === 'env'" :class="{ on: panel.tab === 'env' }" @click="setPanelTab('env')">Environment <span class="count" x-show="envChangeCount()" x-text="envChangeCount()"></span></button>
         <button role="tab" x-show="!panelSite().proxy" :aria-selected="panel.tab === 'php'" :class="{ on: panel.tab === 'php' }" @click="setPanelTab('php')">PHP <span class="count" x-show="ini.scope === 'site:' + panel.name && iniChangeCount()" x-text="iniChangeCount()"></span></button>
         <button role="tab" x-show="panelSite().laravel" :aria-selected="panel.tab === 'packages'" :class="{ on: panel.tab === 'packages' }" @click="setPanelTab('packages')">Packages <span class="count" x-show="sitePk.sel.length" x-text="sitePk.sel.length"></span></button>
+        <button role="tab" :aria-selected="panel.tab === 'share'" :class="{ on: panel.tab === 'share' }" @click="setPanelTab('share')">Share <span class="count live" x-show="shareLink()?.status === 'ready'">live</span></button>
       </div>
     </div>
 
@@ -1854,6 +2393,86 @@
       <div class="actions">
         <button class="btn btn-ghost" x-show="iniDirty()" @click="ini.edits = {}">Discard</button>
         <button class="btn" :disabled="!iniDirty() || ini.saving" @click="saveIni()"><svg class="i spin" x-show="ini.saving"><use href="#i-loader"/></svg> Save</button>
+      </div>
+    </div>
+
+    <!-- Share: a public link -->
+    <div class="modal-body card-pad" x-show="panel.tab === 'share'">
+      <template x-if="!shareLink() && !shareJob()">
+        <div class="stack">
+          <div class="share-intro">
+            <span class="tile-icon tone-blue"><svg class="i"><use href="#i-share"/></svg></span>
+            <div><b class="sp-label">Open this site to the internet</b>
+              <div class="small muted">Get a public <b>https://</b> link to show a client, try the site on your phone over mobile data, or receive webhooks from Stripe, GitHub and others. It runs through Cloudflare for free, with no account. The link stops when you stop it or quit LaraMonster.</div></div>
+          </div>
+          <div class="alert small" x-show="!panelSite().enabled"><svg class="i"><use href="#i-alert"/></svg><div>This site is switched off. Turn it on in General first.</div></div>
+          <div class="alert small" x-show="share.viteHot"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><b>Vite's dev server is running for this site.</b> Visitors can't load its CSS and JavaScript from your computer. Stop <code>npm run dev</code> and run <code>npm run build</code> before sharing.</div></div>
+
+          <div class="sp-section" style="padding-top:0">
+            <b class="sp-label">Who can open it</b>
+            <div class="choice-grid sp-choices">
+              <button class="choice" :class="{ on: !share.protect }" @click="share.protect = false"><b>Anyone with the link</b><small>Good for webhooks and quick demos. The address is long and random.</small></button>
+              <button class="choice" :class="{ on: share.protect }" @click="share.protect = true; if (!share.password) share.password = randomPassword()"><b>Only with a password</b><small>Visitors' browsers ask for a username and password first.</small></button>
+            </div>
+            <template x-if="share.protect">
+              <div class="share-creds">
+                <label class="field">Username<input type="text" x-model="share.user" autocomplete="off" spellcheck="false" :class="{ invalid: share.user && !/^[A-Za-z0-9._@-]{1,64}$/.test(share.user) }"></label>
+                <label class="field">Password
+                  <div class="row" style="gap:6px"><input class="grow mono" type="text" x-model="share.password" autocomplete="off" spellcheck="false" :class="{ invalid: share.password && share.password.length < 4 }">
+                    <button class="btn btn-ghost icon-btn" @click="share.password = randomPassword()" title="New password" aria-label="Generate a new password"><svg class="i"><use href="#i-refresh"/></svg></button></div>
+                </label>
+                <div class="small muted" style="grid-column:1 / -1" x-show="panelSite().laravel && s.pro">Webhook routes found in <button class="btn btn-link small" @click="closeSitePanel(); location.hash = 'webhooks'">Webhooks</button> stay open without the password: providers can't type one.</div>
+              </div>
+            </template>
+          </div>
+
+          <div class="sp-section">
+            <b class="sp-label">How long</b>
+            <div class="chips">
+              <template x-for="m in [[60, '1 hour'], [480, '8 hours'], [1440, '1 day'], [0, 'Until I stop it']]" :key="m[0]">
+                <button type="button" class="chip-btn" :class="{ on: share.minutes === m[0] }" @click="share.minutes = m[0]" x-text="m[1]"></button>
+              </template>
+            </div>
+          </div>
+          <div class="alert error small" x-show="share.error"><svg class="i"><use href="#i-alert"/></svg><div x-text="share.error"></div></div>
+        </div>
+      </template>
+
+      <!-- starting -->
+      <template x-if="shareJob() && !shareJob().done">
+        <div class="stack" role="status">
+          <div class="row" style="gap:10px"><svg class="i spin"><use href="#i-loader"/></svg><b x-text="shareJob().detail || 'Starting…'"></b></div>
+          <div class="bar" :class="{ indet: !(shareJob().transfer?.total > 0) }"><i :style="'width:' + (shareJob().transfer?.total > 0 ? Math.max(4, shareJob().transfer.done / shareJob().transfer.total * 100) : 30) + '%'"></i></div>
+          <div class="small muted">The first link downloads Cloudflare's small tunnel program once. After that, a link takes a few seconds.</div>
+        </div>
+      </template>
+
+      <!-- live -->
+      <template x-if="shareLink()">
+        <div class="stack">
+          <div class="alert error" x-show="shareLink().status === 'error'"><svg class="i"><use href="#i-alert"/></svg><div class="grow"><b>The link stopped working.</b> <span x-text="shareLink().error"></span></div></div>
+          <div class="share-live" :class="{ off: shareLink().status !== 'ready' }">
+            <div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge" :class="shareLink().status === 'ready' ? 'badge-green' : 'badge-red'"><i class="dot" :class="{ on: shareLink().status === 'ready' }"></i> <span x-text="shareLink().status === 'ready' ? 'Public' : 'Stopped'"></span></span>
+              <span class="small muted" x-text="shareLink().requests + ' request' + (shareLink().requests === 1 ? '' : 's') + ' through the link · ' + (shareLink().expires ? 'ends ' + untilText(shareLink().expires) : 'open until you stop it')"></span></div>
+            <div class="input-addon share-url">
+              <input type="text" class="mono" readonly :value="shareLink().url" aria-label="Public link" @focus="$event.target.select()">
+              <button class="btn btn-ghost btn-sm" @click="copy(shareLink().url)"><svg class="i"><use href="#i-copy"/></svg> Copy</button>
+              <button class="btn btn-ghost btn-sm" @click="openURL(shareLink().url)"><svg class="i"><use href="#i-external"/></svg> Open</button>
+            </div>
+            <div class="small" x-show="shareLink().user"><svg class="i" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-shield"/></svg> Asks for a password · username <b class="mono" x-text="shareLink().user"></b><span x-show="share.lastPassword && share.lastSite === panel.name">, password <b class="mono" x-text="share.lastPassword"></b> <button class="btn btn-link small" @click="copy(share.lastPassword)">Copy</button></span></div>
+            <div class="small muted" x-show="shareLink().open?.length" x-text="'Open without a password: ' + (shareLink().open || []).join(', ')"></div>
+          </div>
+          <div class="hint">Anyone with this link reaches your computer's copy of <b x-text="panel.name"></b>, with its database. Laravel sees HTTPS and the public address, so links and redirects use them.</div>
+        </div>
+      </template>
+    </div>
+    <div class="modal-foot" x-show="panel.tab === 'share'">
+      <span class="small muted" x-show="!shareLink() && !shareJob()">Free · through Cloudflare · no account</span>
+      <span class="small muted" x-show="shareLink()" x-text="'Started ' + ago(shareLink()?.started_at)"></span>
+      <div class="actions">
+        <button class="btn" x-show="!shareLink() && !shareJob()" :disabled="!panelSite().enabled || (share.protect && (!/^[A-Za-z0-9._@-]{1,64}$/.test(share.user) || share.password.length < 4))" @click="startShare()"><svg class="i"><use href="#i-share"/></svg> Create public link</button>
+        <button class="btn btn-danger" x-show="shareLink()" :disabled="share.stopping" @click="stopShare()"><svg class="i" :class="{ spin: share.stopping }"><use :href="share.stopping ? '#i-loader' : '#i-stop'"/></svg> <span x-text="shareLink()?.status === 'ready' ? 'Stop sharing' : 'Close'"></span></button>
+        <button class="btn" x-show="shareLink()?.status === 'error'" @click="stopShare().then(() => startShare())">Try again</button>
       </div>
     </div>
 

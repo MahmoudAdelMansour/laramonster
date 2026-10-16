@@ -12,20 +12,32 @@ import (
 )
 
 type Config struct {
-	TLD       string                    `json:"tld"`
-	HTTPPort  int                       `json:"http_port"`
-	HTTPSPort int                       `json:"https_port"`
-	DNSPort   int                       `json:"dns_port"` // built-in resolver for *.<tld>, 0 = off
-	PHP       string                    `json:"php"`      // default PHP version, e.g. "8.4"; empty = newest installed
-	Paths     []string                  `json:"paths"`    // parked directories: every subfolder becomes a site
-	Links     map[string]string         `json:"links"`    // site name -> directory
-	Isolated  map[string]string         `json:"isolated"` // site name -> PHP version
-	Secured   map[string]bool           `json:"secured"`  // site name -> served over HTTPS
-	Disabled  map[string]bool           `json:"disabled"` // site name -> switched off
-	Proxies   map[string]string         `json:"proxies"`  // site name -> URL of the user's own server
-	Tracking  map[string]bool           `json:"tracking"` // site name -> Event Tracker records it (Pro)
-	Services  map[string]*ServiceConfig `json:"services"`
-	Editor    string                    `json:"editor"` // command used by "open in editor", e.g. "code"
+	TLD       string            `json:"tld"`
+	HTTPPort  int               `json:"http_port"`
+	HTTPSPort int               `json:"https_port"`
+	DNSPort   int               `json:"dns_port"` // built-in resolver for *.<tld>, 0 = off
+	PHP       string            `json:"php"`      // default PHP version, e.g. "8.4"; empty = newest installed
+	Paths     []string          `json:"paths"`    // parked directories: every subfolder becomes a site
+	Links     map[string]string `json:"links"`    // site name -> directory
+	Isolated  map[string]string `json:"isolated"` // site name -> PHP version
+	Secured   map[string]bool   `json:"secured"`  // site name -> served over HTTPS
+	Disabled  map[string]bool   `json:"disabled"` // site name -> switched off
+	Proxies   map[string]string `json:"proxies"`  // site name -> URL of the user's own server
+	Tracking  map[string]bool   `json:"tracking"` // site name -> Event Tracker records it (Pro)
+	// Debugging: site name -> the Debugger records its dumps, queries, logs
+	// and exceptions. DebugQuiet keeps dumps out of the page (only in
+	// LaraMonster).
+	Debugging  map[string]bool `json:"debugging,omitempty"`
+	DebugQuiet map[string]bool `json:"debug_quiet,omitempty"`
+	// Webhooks: site name -> incoming webhook requests are recorded (Pro).
+	Webhooks map[string]bool `json:"webhooks,omitempty"`
+	// WebhookPaths: extra paths to record per site, added by the person.
+	WebhookPaths map[string][]string `json:"webhook_paths,omitempty"`
+	// PHPExtensions turns extensions on (true) or off (false) per PHP
+	// version, on top of what that PHP's own php.ini loads.
+	PHPExtensions map[string]map[string]bool `json:"php_extensions,omitempty"`
+	Services      map[string]*ServiceConfig  `json:"services"`
+	Editor        string                     `json:"editor"` // command used by "open in editor", e.g. "code"
 	// PHPSettings are php.ini settings by scope: "global", a version ("8.4")
 	// or "site:<name>". Later scopes win: global < version < site.
 	PHPSettings map[string]map[string]string `json:"php_settings,omitempty"`
@@ -94,6 +106,18 @@ func Load() (*Config, error) {
 	}
 	if c.Tracking == nil {
 		c.Tracking = map[string]bool{}
+	}
+	if c.Debugging == nil {
+		c.Debugging = map[string]bool{}
+	}
+	if c.DebugQuiet == nil {
+		c.DebugQuiet = map[string]bool{}
+	}
+	if c.Webhooks == nil {
+		c.Webhooks = map[string]bool{}
+	}
+	if c.PHPExtensions == nil {
+		c.PHPExtensions = map[string]map[string]bool{}
 	}
 	return c, nil
 }

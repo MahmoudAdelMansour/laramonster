@@ -88,6 +88,7 @@ func Caddyfile(cfg *config.Config, list []sites.Site, upstreams func(version, si
 		}
 		if s.Enabled {
 			fmt.Fprintf(&b, "\tlaramonster_count %s\n", quote(s.Name))
+			fmt.Fprintf(&b, "\tlaramonster_hooks %s\n", quote(s.Name))
 		}
 		switch {
 		case !s.Enabled:
