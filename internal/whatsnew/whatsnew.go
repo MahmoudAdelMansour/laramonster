@@ -37,6 +37,17 @@ type Release struct {
 // Releases, newest first.
 var Releases = []Release{
 	{
+		Version: "0.2.3",
+		Date:    "2026-10-19",
+		Title:   "Updates now update everything",
+		Summary: "If LaraMonster also runs at login or from a terminal, an update now restarts that part too, so the whole app is on the new version.",
+		Items: []Item{
+			{Kind: "fixed", Icon: "refresh", Title: "The engine updates with the app",
+				Text:  "When LaraMonster started at login (or with laramonster start), an update left the background engine on the old version: the dashboard kept saying an update was available while Update now said you were up to date. The app now replaces an older engine when it opens.",
+				Where: []string{"Settings", "About", "Version"}, Page: "settings", Docs: "installation#updates"},
+		},
+	},
+	{
 		Version: "0.2.2",
 		Date:    "2026-10-19",
 		Title:   "What's new, right in the app",

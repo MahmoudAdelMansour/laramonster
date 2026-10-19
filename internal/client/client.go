@@ -92,3 +92,32 @@ func Ready() bool {
 	_, err := Call("GET", "/health", nil)
 	return err == nil
 }
+
+// Version is the version of the running daemon, e.g. "v0.2.2".
+func Version() (string, error) {
+	body, err := Call(http.MethodGet, "/status", nil)
+	if err != nil {
+		return "", err
+	}
+	var st struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(body, &st); err != nil {
+		return "", err
+	}
+	return st.Version, nil
+}
+
+// StopAndWait asks the daemon to stop and waits until it has: its ports
+// are free and a new engine can start. It gives up after timeout.
+func StopAndWait(timeout time.Duration) error {
+	if _, err := Call(http.MethodPost, "/stop", nil); err != nil && Running() {
+		return err
+	}
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		if !Running() {
+			return nil
+		}
+	}
+	return errors.New("LaraMonster did not stop in time")
+}

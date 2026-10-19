@@ -77,6 +77,18 @@ func main() {
 		return
 	}
 
+	// An engine left running from before an update (a login service or
+	// `laramonster start` that kept the old code) answers with an older
+	// version: stop it, so this app runs the engine that matches it.
+	if client.Running() {
+		if v, err := client.Version(); err == nil && update.Newer(core.Version, v) {
+			log.Printf("the running engine is %s, this app is %s: restarting it", v, core.Version)
+			if err := client.StopAndWait(30 * time.Second); err != nil {
+				log.Printf("engine: %v", err)
+			}
+		}
+	}
+
 	// Run the engine in-process if nothing else is running it.
 	if !client.Running() {
 		ownsEngine = true
@@ -112,7 +124,9 @@ func main() {
 			// login service) runs the old code: stop it, so the new app
 			// starts the new engine (a login service restarts on the new files).
 			if !ownsEngine {
-				_, _ = client.Call(http.MethodPost, "/api/stop", nil)
+				if err := client.StopAndWait(30 * time.Second); err != nil {
+					log.Printf("engine: %v", err)
+				}
 			}
 			quitting = true
 			app.Quit()
