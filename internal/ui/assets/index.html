@@ -28,6 +28,7 @@
     <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6.5A2.5 2.5 0 0 0 4 20.5 2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8"/><path d="M8 11h6"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
@@ -106,9 +107,10 @@
       <template x-for="item in nav" :key="item.id">
         <div>
           <div class="nav-label" x-show="item.group" x-text="item.group"></div>
-          <a :href="'#' + item.id" :class="{ active: page === item.id }" @click="drawer = false" :aria-current="page === item.id ? 'page' : null">
+          <a :href="item.href ? item.href() : '#' + item.id" :target="item.href ? '_blank' : null" :rel="item.href ? 'noopener' : null" :class="{ active: page === item.id }" @click="drawer = false" :aria-current="page === item.id ? 'page' : null">
             <svg class="i"><use :href="'#i-' + item.icon"/></svg>
             <span x-text="item.label"></span>
+            <svg class="i nav-ext" x-show="item.href" aria-hidden="true"><use href="#i-external"/></svg>
             <span class="count" :class="{ hot: item.hot && item.hot(), pro: item.pro }" x-show="item.count() !== null" x-text="item.count()"></span>
           </a>
         </div>
@@ -137,6 +139,13 @@
     <template x-if="s">
     <div>
 
+    <!-- another program holds the web server's ports: no site is served -->
+    <div class="alert error" style="margin-bottom:16px;align-items:center" x-show="(s.ports_busy || []).length && !onboard.open">
+      <svg class="i"><use href="#i-alert"/></svg>
+      <div class="grow"><b x-text="(s.ports_busy.length > 1 ? 'Ports ' + s.ports_busy.join(' and ') + ' are' : 'Port ' + s.ports_busy[0] + ' is') + ' used by another program'"></b><div class="small">LaraMonster can't serve your sites until it has its ports back, or moves to free ones.</div></div>
+      <button class="btn btn-sm" @click="openPortsFix()"><svg class="i"><use href="#i-wrench"/></svg> Fix it</button>
+    </div>
+
     <!-- warnings -->
     <div class="stack" style="margin-bottom:16px" x-show="s.warnings.length">
       <template x-for="w in s.warnings" :key="w">
@@ -157,7 +166,8 @@
     <section x-show="page === 'dashboard'">
       <div class="card hero" style="margin-bottom:16px">
         <div style="min-width:0">
-          <span class="badge" style="background:rgba(43,181,125,.18);color:#7DF0BF"><i class="dot on"></i> All systems roaring</span>
+          <span class="badge" style="background:rgba(43,181,125,.18);color:#7DF0BF" x-show="!(s.ports_busy || []).length"><i class="dot on"></i> All systems roaring</span>
+          <span class="badge" style="background:rgba(237,80,80,.2);color:#FFB3B3" x-show="(s.ports_busy || []).length"><i class="dot off"></i> Web server stopped: ports busy</span>
           <h2 style="margin-top:12px">Unleash your next Laravel app</h2>
           <p>Projects in your parked folders are served at <b x-text="'*.' + s.config.tld"></b> with PHP <b x-text="s.default_php || '—'"></b>. Create one with your starter kit, database and packages in a minute.</p>
           <div class="actions">
@@ -2583,28 +2593,95 @@
   <div class="onboard-inner">
     <div class="onboard-top">
       <div class="brand onboard-brand"><img src="img/monster.png" alt=""><div class="wordmark"><span>Lara</span>Monster</div></div>
-      <button class="btn btn-link small" x-show="onboard.step < 4" @click="finishOnboard()">Skip setup</button>
+      <div class="row" style="gap:4px">
+        <a class="btn btn-link small" :href="docsURL('getting-started')" target="_blank" rel="noopener">Setup guide <svg class="i"><use href="#i-external"/></svg></a>
+        <!-- Ports and HTTPS can't be skipped: without them no site works. -->
+        <button class="btn btn-link small" x-show="!onboard.single && onboard.step < obStep('Done') && !obBlocked()" @click="finishOnboard()">Skip setup</button>
+        <button class="btn btn-link small" x-show="onboard.single" @click="onboard.open = false">Close</button>
+      </div>
     </div>
-    <ol class="onboard-progress" aria-label="Setup steps">
+    <ol class="onboard-progress" aria-label="Setup steps" x-show="!onboard.single">
       <template x-for="(name, i) in onboardSteps" :key="name">
         <li :class="{ on: i === onboard.step, done: i < onboard.step }" :aria-current="i === onboard.step ? 'step' : null"><span x-text="name"></span></li>
       </template>
     </ol>
 
-    <!-- 0: welcome -->
-    <section class="card onboard-card" x-show="onboard.step === 0">
+    <!-- welcome -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('Welcome')">
       <h1 id="ob-title" class="display">Welcome to LaraMonster</h1>
       <p>Everything you need to build PHP and Laravel apps on this computer: PHP, a web server, databases, mail and HTTPS, ready in about a minute.</p>
       <ul class="onboard-list">
+        <li><svg class="i"><use href="#i-server"/></svg><div><b>Check the web server's ports</b><span>Makes sure nothing else is using them.</span></div></li>
         <li><svg class="i"><use href="#i-folder"/></svg><div><b>Pick your projects folder</b><span>Every project inside it gets its own address.</span></div></li>
         <li><svg class="i"><use href="#i-code"/></svg><div><b>Get PHP</b><span>One download, no compiling.</span></div></li>
-        <li><svg class="i"><use href="#i-shield"/></svg><div><b>Connect your system</b><span>Terminal commands, start at login and HTTPS.</span></div></li>
+        <li><svg class="i"><use href="#i-shield"/></svg><div><b>Trust local HTTPS</b><span>Required: your browser shows a valid padlock for every site.</span></div></li>
       </ul>
-      <div class="onboard-foot"><span></span><button class="btn btn-orange" @click="onboard.step = 1">Get started</button></div>
+      <div class="onboard-foot"><span></span><button class="btn btn-orange" @click="obGo('Ports')">Get started</button></div>
     </section>
 
-    <!-- 1: projects folder -->
-    <section class="card onboard-card" x-show="onboard.step === 1">
+    <!-- ports -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('Ports')">
+      <h1 class="display">Web server ports</h1>
+      <template x-if="!onboard.setup">
+        <div class="small muted">Checking the ports…</div>
+      </template>
+      <template x-if="onboard.setup && !portsBusy().length">
+        <div class="stack">
+          <div class="alert success"><svg class="i"><use href="#i-check"/></svg><div>Ports <b x-text="onboard.setup.ports.map(p => p.port + ' (' + p.use + ')').join(' and ')"></b> are free and LaraMonster is listening on them. Your sites open at <b x-text="s && sampleSiteURL()"></b>.</div></div>
+          <p class="small muted">LaraMonster uses its own ports so it never clashes with nginx, Apache or Docker on 80 and 443. You can change them any time in Settings.</p>
+        </div>
+      </template>
+      <template x-if="onboard.setup && portsBusy().length">
+        <div class="stack">
+          <template x-for="p in portsBusy()" :key="p.port">
+            <div class="alert error"><svg class="i"><use href="#i-alert"/></svg><div>
+              <b x-text="'Port ' + p.port + ' (' + p.use + ') is already in use'"></b>
+              <div class="small" x-text="p.owner ? 'It\'s used by ' + p.owner + (p.pid ? ' (process ' + p.pid + ')' : '') + '.' : (p.pid ? 'It\'s used by process ' + p.pid + '.' : 'Another program is listening on it. Your system hides which one, the commands below show it.')"></div>
+            </div></div>
+          </template>
+          <p>LaraMonster can't serve your sites until it has both ports. Pick one of these:</p>
+
+          <div class="opt-row" style="border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+            <div class="grow"><b style="color:var(--title)">Use other ports</b> <span class="badge badge-green">Recommended</span>
+              <div class="small muted">Nothing else changes. Your sites then open at <span class="mono" x-text="portsSampleURL()"></span>.</div></div>
+            <button class="btn btn-sm" :disabled="!!onboard.busy || !portsSuggestion()" @click="usePorts()"><svg class="i" :class="{ spin: onboard.busy === 'ports' }"><use :href="onboard.busy === 'ports' ? '#i-loader' : '#i-check'"/></svg> <span x-text="portsSuggestion() ? 'Use ' + Object.values(portsSuggestion()).join(' and ') : 'No free port nearby'"></span></button>
+          </div>
+
+          <div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px" class="stack">
+            <div><b style="color:var(--title)">Or free the port</b><div class="small muted">Stop the program that's using it, then check again.</div></div>
+            <div class="tabs" role="tablist" aria-label="Operating system">
+              <template x-for="o in [['darwin', 'macOS'], ['linux', 'Linux'], ['windows', 'Windows']]" :key="o[0]">
+                <button type="button" role="tab" :class="{ on: portsOS === o[0] }" :aria-selected="portsOS === o[0]" @click="portsOS = o[0]" x-text="o[1] + (onboard.setup.os === o[0] ? ' (this computer)' : '')"></button>
+              </template>
+            </div>
+            <template x-for="p in portFixTargets()" :key="'fix' + p.port">
+              <div class="stack" style="gap:8px">
+              <b class="small" style="color:var(--title)" x-show="portFixTargets().length > 1" x-text="'Port ' + p.port"></b>
+              <ol class="fix-steps">
+                <template x-for="(st, i) in portFix(portsOS, p)" :key="i">
+                  <li>
+                    <div x-html="st.text"></div>
+                    <template x-if="st.cmd">
+                      <div class="cmd"><code x-text="st.cmd"></code><button class="btn btn-ghost icon-btn sm" @click="copy(st.cmd)" aria-label="Copy command" title="Copy"><svg class="i"><use href="#i-copy"/></svg></button></div>
+                    </template>
+                  </li>
+                </template>
+              </ol>
+              </div>
+            </template>
+            <div class="row"><button class="btn btn-sm btn-ghost" :disabled="!!onboard.busy" @click="checkPorts()"><svg class="i" :class="{ spin: onboard.busy === 'check' }"><use :href="onboard.busy === 'check' ? '#i-loader' : '#i-refresh'"/></svg> Check again</button>
+              <a class="btn btn-link small" :href="docsURL('troubleshooting', 'port-in-use')" target="_blank" rel="noopener">More help in the docs <svg class="i"><use href="#i-external"/></svg></a></div>
+          </div>
+        </div>
+      </template>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" x-show="!onboard.single" @click="obGo('Welcome')">Back</button><span x-show="onboard.single"></span>
+        <button class="btn" :disabled="!onboard.setup || !!portsBusy().length || !!onboard.busy" @click="onboard.single ? (onboard.open = false) : obGo('Projects')" x-text="onboard.single ? 'Done' : 'Continue'"></button>
+      </div>
+    </section>
+
+    <!-- projects folder -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('Projects')">
       <h1 class="display">Where do your projects live?</h1>
       <p>LaraMonster serves every folder inside it. A project in <span class="mono" x-text="(onboard.folder || '…') + '/blog'"></span> opens at <b x-text="s && sampleSiteURL()"></b>. The folder is created if it doesn't exist yet.</p>
       <label class="field">Projects folder
@@ -2614,13 +2691,13 @@
         </div>
       </label>
       <div class="onboard-foot">
-        <button class="btn btn-ghost" @click="onboard.step = 0">Back</button>
+        <button class="btn btn-ghost" @click="obGo('Ports')">Back</button>
         <button class="btn" :disabled="!onboard.folder.trim() || !!onboard.busy" @click="onboardFolder()"><svg class="i spin" x-show="onboard.busy === 'folder'"><use href="#i-loader"/></svg> Continue</button>
       </div>
     </section>
 
-    <!-- 2: PHP -->
-    <section class="card onboard-card" x-show="onboard.step === 2">
+    <!-- PHP -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('PHP')">
       <h1 class="display">PHP</h1>
       <template x-if="s && s.php.length">
         <div class="alert success"><svg class="i"><use href="#i-check"/></svg><div>PHP <b x-text="s.default_php"></b> is ready<span x-show="s.php.length > 1" x-text="' (' + s.php.length + ' versions found)'"></span>. You can add more versions later from the PHP page.</div></div>
@@ -2644,13 +2721,73 @@
         </div>
       </template>
       <div class="onboard-foot">
-        <button class="btn btn-ghost" @click="onboard.step = 1">Back</button>
-        <button class="btn" :class="{ 'btn-ghost': s && !s.php.length && !phpJob() }" @click="onboard.step = 3" x-text="s && (s.php.length || phpJob()) ? 'Continue' : 'Skip for now'"></button>
+        <button class="btn btn-ghost" @click="obGo('Projects')">Back</button>
+        <button class="btn" :class="{ 'btn-ghost': s && !s.php.length && !phpJob() }" @click="obGo('HTTPS')" x-text="s && (s.php.length || phpJob()) ? 'Continue' : 'Skip for now'"></button>
       </div>
     </section>
 
-    <!-- 3: system -->
-    <section class="card onboard-card" x-show="onboard.step === 3">
+    <!-- HTTPS (required) -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('HTTPS')">
+      <h1 class="display">Trust local HTTPS</h1>
+      <p>LaraMonster signs a certificate for every site with its own certificate authority, created on this computer and never shared. Trusting it once gives every <span class="mono">https://</span> site a valid padlock, so secure cookies, OAuth callbacks, service workers and webhooks behave like they do in production.</p>
+      <div class="alert info small"><svg class="i"><use href="#i-info"/></svg><div>This step is required. Your system asks for your password once<span x-show="onboard.setup?.os === 'linux'">, and browsers on Linux need <b>certutil</b> to learn about the certificate</span>.</div></div>
+      <div x-show="s">
+        <div class="opt-row">
+          <i class="dot" :class="s?.tls.trusted ? 'on' : 'off'"></i>
+          <div class="grow"><b style="color:var(--title)">System</b><div class="small muted">curl, PHP<span x-show="onboard.setup?.os !== 'linux'">, Safari, Chrome and Edge</span></div></div>
+          <span class="badge" :class="s?.tls.trusted ? 'badge-green' : 'badge-orange'" x-text="s?.tls.trusted ? 'Trusted' : 'Not trusted yet'"></span>
+        </div>
+        <div class="opt-row" x-show="s?.tls.browsers !== 'system'">
+          <i class="dot" :class="s?.tls.browsers === 'trusted' ? 'on' : 'off'"></i>
+          <div class="grow"><b style="color:var(--title)">Browsers</b><div class="small muted">Firefox<span x-show="onboard.setup?.os === 'linux'">, Chrome and Chromium</span></div></div>
+          <span class="badge" :class="s?.tls.browsers === 'trusted' ? 'badge-green' : (s?.tls.browsers === 'none' ? '' : 'badge-orange')" x-text="s?.tls.browsers === 'none' ? 'No profiles yet' : browserText()"></span>
+        </div>
+      </div>
+      <template x-if="s && !s.tls.exists">
+        <div class="alert small"><svg class="i"><use href="#i-alert"/></svg><div>The certificate authority is created when the web server starts. <span x-show="(s.ports_busy || []).length">Fix the ports first: <button class="btn btn-link small" @click="obGo('Ports')">back to Ports</button></span><span x-show="!(s.ports_busy || []).length">It should appear in a few seconds.</span></div></div>
+      </template>
+      <template x-if="s && s.tls.browsers === 'missing-certutil'">
+        <div class="alert small" style="align-items:center"><svg class="i"><use href="#i-alert"/></svg><div class="grow">Browsers need <b>certutil</b> (Browser certificate tools) before they can be told about the certificate.</div>
+          <button class="btn btn-sm" :disabled="jobBusy('Install Browser certificate tools')" @click="installTool(tools.find(t => t.id === 'nss'))"><svg class="i" :class="{ spin: jobBusy('Install Browser certificate tools') }"><use :href="jobBusy('Install Browser certificate tools') ? '#i-loader' : '#i-download'"/></svg> Install certutil</button></div>
+      </template>
+      <div class="row" x-show="s && !httpsReady()">
+        <button class="btn btn-orange" :disabled="!!onboard.busy || !s?.tls.exists" @click="onboardTrust()"><svg class="i" :class="{ spin: onboard.busy === 'trust' }"><use :href="onboard.busy === 'trust' ? '#i-loader' : '#i-shield'"/></svg> <span x-text="s?.tls.trusted ? 'Trust in browsers' : 'Trust the certificate'"></span></button>
+        <span class="small muted">asks for your password</span>
+      </div>
+      <template x-if="s && httpsReady()">
+        <div class="alert success"><svg class="i"><use href="#i-check"/></svg><div>HTTPS is trusted. Restart your browser once so it picks up the certificate.</div></div>
+      </template>
+      <!-- When the prompt fails (no polkit, a locked-down Mac, etc.): the same by hand. -->
+      <details class="manual" x-show="s && !httpsReady() && s.tls.exists" :open="onboard.trustFailed">
+        <summary>Trust it by hand instead</summary>
+        <div class="stack" style="margin-top:10px">
+          <div class="tabs" role="tablist" aria-label="Operating system">
+            <template x-for="o in [['darwin', 'macOS'], ['linux', 'Linux'], ['windows', 'Windows']]" :key="o[0]">
+              <button type="button" role="tab" :class="{ on: portsOS === o[0] }" :aria-selected="portsOS === o[0]" @click="portsOS = o[0]" x-text="o[1] + (onboard.setup?.os === o[0] ? ' (this computer)' : '')"></button>
+            </template>
+          </div>
+          <ol class="fix-steps">
+            <template x-for="(st, i) in trustFix(portsOS)" :key="i">
+              <li>
+                <div x-html="st.text"></div>
+                <template x-if="st.cmd">
+                  <div class="cmd"><code x-text="st.cmd"></code><button class="btn btn-ghost icon-btn sm" @click="copy(st.cmd)" aria-label="Copy command" title="Copy"><svg class="i"><use href="#i-copy"/></svg></button></div>
+                </template>
+              </li>
+            </template>
+          </ol>
+          <div class="row"><button class="btn btn-sm btn-ghost" @click="checkTrust()"><svg class="i"><use href="#i-refresh"/></svg> Check again</button>
+            <a class="btn btn-link small" :href="docsURL('https')" target="_blank" rel="noopener">HTTPS in the docs <svg class="i"><use href="#i-external"/></svg></a></div>
+        </div>
+      </details>
+      <div class="onboard-foot">
+        <button class="btn btn-ghost" @click="obGo('PHP')">Back</button>
+        <button class="btn" :disabled="!httpsReady() || !!onboard.busy" :title="httpsReady() ? '' : 'Trust the certificate first'" @click="obGo('Your system')">Continue</button>
+      </div>
+    </section>
+
+    <!-- system -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('Your system')">
       <h1 class="display">Connect your system</h1>
       <p>Each of these is optional and can be changed later.</p>
       <div>
@@ -2665,23 +2802,18 @@
           <div class="grow"><b style="color:var(--title)">Start at login</b><div class="small muted">Your sites and databases are up as soon as you log in.</div></div>
           <label class="switch"><input type="checkbox" :checked="onboard.setup?.autostart" :disabled="!onboard.setup || !!onboard.busy" @change="onboardAutostart($event.target)" aria-label="Start at login"><span></span></label>
         </div>
-        <div class="opt-row">
-          <div class="grow"><b style="color:var(--title)">Trust local HTTPS</b><div class="small muted">Secured sites get a valid padlock in your browser. Asks for your password once.</div></div>
-          <span class="badge badge-green" x-show="s && tlsOK()">Trusted</span>
-          <button class="btn btn-sm" x-show="s && !tlsOK()" :disabled="!!onboard.busy || !s?.tls.exists" @click="onboardTrust()"><svg class="i" :class="{ spin: onboard.busy === 'trust' }"><use :href="onboard.busy === 'trust' ? '#i-loader' : '#i-shield'"/></svg> Trust</button>
-        </div>
       </div>
       <div class="onboard-foot">
-        <button class="btn btn-ghost" @click="onboard.step = 2">Back</button>
-        <button class="btn" :disabled="!!onboard.busy" @click="onboard.step = 4">Continue</button>
+        <button class="btn btn-ghost" @click="obGo('HTTPS')">Back</button>
+        <button class="btn" :disabled="!!onboard.busy" @click="obGo('Done')">Continue</button>
       </div>
     </section>
 
-    <!-- 4: done -->
-    <section class="card onboard-card" x-show="onboard.step === 4">
+    <!-- done -->
+    <section class="card onboard-card" x-show="onboard.step === obStep('Done')">
       <div class="onboard-done"><svg class="i"><use href="#i-check"/></svg></div>
       <h1 class="display">You're all set</h1>
-      <p>Drop a project into <span class="mono" x-text="onboard.setup?.folder || onboard.folder"></span> and it's live right away, or let LaraMonster create a new Laravel app for you.</p>
+      <p>Drop a project into <span class="mono" x-text="onboard.setup?.folder || onboard.folder"></span> and it's live right away, or let LaraMonster create a new Laravel app for you. New here? The <a :href="docsURL('getting-started')" target="_blank" rel="noopener">documentation</a> walks through every feature with examples.</p>
       <div class="onboard-foot">
         <button class="btn btn-ghost" @click="finishOnboard()">Go to dashboard</button>
         <button class="btn btn-orange" @click="finishOnboard('project')"><svg class="i"><use href="#i-plus"/></svg> Create a project</button>

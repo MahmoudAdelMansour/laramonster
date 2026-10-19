@@ -80,11 +80,11 @@ func (r *Runtime) Reload() error {
 		return err
 	}
 	// Caddy binds with SO_REUSEPORT on Linux, so a second engine (or another
-	// web server) on the same port would silently share traffic. Refuse.
-	for _, port := range []int{cfg.HTTPPort, cfg.HTTPSPort} {
-		if !slices.Contains(r.ports, port) && portBusy(port) {
-			return fmt.Errorf("port %d is already used by another program (another LaraMonster, nginx or Apache?); stop it or change the port in Settings", port)
-		}
+	// web server) on the same port would silently share traffic. Refuse, but
+	// set up everything else: the dashboard explains it and switches ports.
+	var busy error
+	if ports := busyPorts(cfg, r.ports); len(ports) > 0 {
+		busy = &PortsBusyError{Ports: ports}
 	}
 	installs := php.Discover()
 	list := sites.List(cfg, php.Default(cfg.PHP, installs))
@@ -182,6 +182,12 @@ func (r *Runtime) Reload() error {
 		server.ShareBlocks(list, r.fpm.UpstreamsFor, r.shares.Blocks())
 	// Kept for debugging: what Caddy is actually running.
 	_ = os.WriteFile(filepath.Join(paths.Run(), "Caddyfile"), []byte(caddyfile), 0o644)
+	if busy != nil {
+		// Caddy keeps the ports it has, if any.
+		r.sites, r.installs, r.broken = list, installs, php.FindBroken(installs)
+		r.warnings = slices.Compact(warnings)
+		return busy
+	}
 	if err := server.Apply(caddyfile); err != nil {
 		return err
 	}
@@ -256,6 +262,7 @@ type Status struct {
 	Warnings     []string         `json:"warnings"`
 	Jobs         []core.Job       `json:"jobs"`
 	Shares       []share.Link     `json:"shares"`
+	PortsBusy    []int            `json:"ports_busy"` // web server ports another program holds
 }
 
 func (r *Runtime) Status() Status {
@@ -268,6 +275,7 @@ func (r *Runtime) Status() Status {
 	installs := slices.Clone(r.installs)
 	broken := slices.Clone(r.broken)
 	warnings := slices.Clone(r.warnings)
+	ours := slices.Clone(r.ports)
 	r.mu.Unlock()
 
 	st := Status{
@@ -290,6 +298,10 @@ func (r *Runtime) Status() Status {
 		Warnings:  warnings,
 		Jobs:      r.jobs.Snapshot(),
 		Shares:    r.shares.List(),
+		PortsBusy: busyPorts(cfg, ours),
+	}
+	if st.PortsBusy == nil {
+		st.PortsBusy = []int{}
 	}
 	if st.PHPBroken == nil {
 		st.PHPBroken = []php.Broken{}

@@ -143,7 +143,8 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     s: null,
     offline: false,
-    onboard: { open: false, step: 0, setup: null, folder: '', busy: '' },
+    onboard: { open: false, step: 0, setup: null, folder: '', busy: '', single: false, trustFailed: false, osPicked: false },
+    portsOS: 'linux', // the OS tab in the port and HTTPS instructions
     page: 'dashboard',
     theme: storeGet('lm-theme', 'system'),
     desktop: false,
@@ -229,6 +230,7 @@ document.addEventListener('alpine:init', () => {
         { id: 'account', label: 'Account', icon: 'user', count: () => this.acctAlert() ? '!' : null, hot: () => true },
         { id: 'logs', label: 'Logs', icon: 'logs', count: () => null },
         { id: 'settings', label: 'Settings', icon: 'cog', count: () => null },
+        { id: 'docs', label: 'Documentation', icon: 'book', count: () => null, href: () => this.docsURL() },
       ];
       this.applyTheme();
       const route = () => {
@@ -870,6 +872,8 @@ document.addEventListener('alpine:init', () => {
       if (on && this.update?.available) this.updateFound();
     },
     // Pages on the licensing site (sign up, password reset), from the buy link the server sends.
+    // The documentation on monstersgate.com: a page and an optional section.
+    docsURL(page, section) { return this.siteURL('/laramonster/docs' + (page ? '/' + page : '') + (section ? '#' + section : '')); },
     siteURL(path) { try { return new URL(path, this.acct?.buy_url || 'https://monstersgate.com').toString(); } catch { return 'https://monstersgate.com' + path; } },
     licenseExpiry() {
       const l = this.acct?.license;
@@ -2109,21 +2113,145 @@ document.addEventListener('alpine:init', () => {
       if (await this.act(api('POST', '/settings', { tld: f.tld, http_port: Number(f.http_port), https_port: Number(f.https_port), dns_port: Number(f.dns_port), editor: f.editor }), 'Settings saved')) this.syncForm();
     },
     // ---------- first-run setup ----------
-    onboardSteps: ['Welcome', 'Projects', 'PHP', 'Your system', 'Done'],
+    onboardSteps: ['Welcome', 'Ports', 'Projects', 'PHP', 'HTTPS', 'Your system', 'Done'],
+    obStep(name) { return this.onboardSteps.indexOf(name); },
+    obGo(name) { this.onboard.step = this.obStep(name); },
+    // Setup can't be skipped while no site can work: ports busy or HTTPS untrusted.
+    obBlocked() { return !this.s || !!(this.s.ports_busy || []).length || !this.httpsReady(); },
     async openOnboard() {
-      Object.assign(this.onboard, { open: true, step: 0, busy: '' });
+      Object.assign(this.onboard, { open: true, step: 0, busy: '', single: false, trustFailed: false });
       await this.loadSetup();
       this.onboard.folder = this.onboard.setup?.folder || '';
       if (!this.s.php.length) this.loadAvailable();
+      if (!this.tools.length) this.loadTools();
+    },
+    // From the dashboard banner: only the Ports step.
+    async openPortsFix() {
+      Object.assign(this.onboard, { open: true, step: this.obStep('Ports'), busy: '', single: true });
+      await this.loadSetup();
     },
     async loadSetup() {
-      try { this.onboard.setup = await api('GET', '/setup'); } catch (e) { this.toast(e.message, 'err'); }
+      try {
+        this.onboard.setup = await api('GET', '/setup');
+        if (!this.onboard.osPicked) { this.portsOS = this.onboard.setup.os; this.onboard.osPicked = true; }
+      } catch (e) { this.toast(e.message, 'err'); }
     },
     // Runs one setup action; errors stay on screen as a toast.
     async setupStep(busy, fn) {
       this.onboard.busy = busy;
       try { return await fn(); } catch (e) { this.toast(e.message, 'err'); return false; }
       finally { this.onboard.busy = ''; }
+    },
+
+    // ---------- ports ----------
+    portsBusy() { return (this.onboard.setup?.ports || []).filter(p => p.busy); },
+    // One set of steps per program: a web server often holds both ports.
+    portFixTargets() {
+      const out = [];
+      for (const p of this.portsBusy()) {
+        const same = p.pid && out.find(t => t.pid === p.pid);
+        if (same) same.ports.push(p.port);
+        else out.push({ ...p, ports: [p.port] });
+      }
+      return out;
+    },
+    // The nearby free ports to move to, as settings: { http_port, https_port }.
+    portsSuggestion() {
+      const busy = this.portsBusy();
+      if (!busy.length || busy.some(p => !p.free)) return null;
+      const out = {};
+      for (const p of busy) out[p.use === 'HTTP' ? 'http_port' : 'https_port'] = p.free;
+      return out;
+    },
+    portsSampleURL() {
+      const sug = this.portsSuggestion() || {}, c = this.s?.config;
+      if (!c) return '';
+      const port = sug.http_port || c.http_port;
+      return 'http://blog.' + c.tld + (port === 80 ? '' : ':' + port);
+    },
+    async usePorts() {
+      const sug = this.portsSuggestion();
+      if (!sug) return;
+      await this.setupStep('ports', async () => {
+        this.onboard.setup = await api('POST', '/setup/ports', sug);
+        await this.refresh();
+        this.syncForm();
+        if (!this.portsBusy().length) this.toast('LaraMonster now uses ports ' + this.s.config.http_port + ' and ' + this.s.config.https_port, 'ok');
+      });
+    },
+    async checkPorts() {
+      await this.setupStep('check', async () => {
+        this.onboard.setup = await api('POST', '/setup/ports', {});
+        await this.refresh();
+        this.toast(this.portsBusy().length ? 'Still in use: ' + this.portsBusy().map(p => p.port).join(' and ') : 'The ports are free now', this.portsBusy().length ? 'err' : 'ok');
+      });
+    },
+    // Steps to free a port on one OS: [{ text (HTML), cmd? }]. The owner's
+    // name picks the matching stop command when the system told us.
+    portFix(os, p) {
+      const port = p.port, pid = p.pid || '<PID>', owner = (p.owner || '').toLowerCase();
+      const known = name => owner && new RegExp(name, 'i').test(owner);
+      const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      const who = p.owner ? '<b>' + esc(p.owner) + '</b>' : 'the program';
+      const steps = [];
+      if (known('laramonster')) {
+        steps.push({ text: 'It\'s another copy of LaraMonster, started from a terminal, at login or from another folder. Quit it from its tray icon, or stop it:', cmd: 'laramonster stop' });
+        return steps;
+      }
+      if (os === 'windows') {
+        steps.push({ text: 'Open <b>PowerShell</b> and find what listens on port ' + port + ':', cmd: 'Get-Process -Id (Get-NetTCPConnection -LocalPort ' + port + ' -State Listen).OwningProcess' });
+        if (known('httpd|apache')) steps.push({ text: 'It\'s Apache: stop it in the <b>XAMPP</b>, <b>WampServer</b> or <b>Laragon</b> control panel, or stop its service:', cmd: 'Stop-Service -Name Apache*' });
+        else if (known('nginx')) steps.push({ text: 'It\'s nginx: stop it from its control panel (Laragon, WNMP), or:', cmd: 'taskkill /IM nginx.exe /F' });
+        else if (known('^system$')) steps.push({ text: 'It\'s Windows itself, usually <b>IIS</b> or another web service. Run PowerShell <b>as administrator</b>:', cmd: 'iisreset /stop' });
+        else if (known('docker|com\.docker|wslrelay|vpnkit')) steps.push({ text: 'It\'s a Docker container. Find and stop the one that publishes port ' + port + ':', cmd: 'docker ps --filter "publish=' + port + '"' });
+        if (!known('^system$')) steps.push({ text: 'Or stop ' + who + ' by its process ID:', cmd: 'Stop-Process -Id ' + pid });
+        steps.push({ text: 'If it starts again with Windows, turn it off in <b>Services</b> (<span class="mono">services.msc</span>) or the program\'s own settings.' });
+      } else if (os === 'darwin') {
+        steps.push({ text: 'Open <b>Terminal</b> and find what listens on port ' + port + ':', cmd: 'sudo lsof -nP -iTCP:' + port + ' -sTCP:LISTEN' });
+        if (known('nginx|httpd')) steps.push({ text: 'Installed with Homebrew? Stop the service (and keep it off at login):', cmd: 'brew services stop ' + (known('nginx') ? 'nginx' : 'httpd') });
+        else if (known('herd|valet')) steps.push({ text: 'It\'s Laravel Herd or Valet: quit Herd from its menu bar icon, or stop Valet:', cmd: 'valet stop' });
+        else if (known('docker|com\.docke|vpnkit')) steps.push({ text: 'It\'s a Docker container. Find and stop the one that publishes port ' + port + ':', cmd: 'docker ps --filter "publish=' + port + '"' });
+        steps.push({ text: 'Or stop ' + who + ' by its process ID:', cmd: 'kill ' + pid });
+        steps.push({ text: 'Common culprits: Homebrew services (<span class="mono">brew services list</span>), Laravel Herd/Valet, MAMP, Docker Desktop and other dev servers.' });
+      } else {
+        steps.push({ text: 'Open a terminal and find what listens on port ' + port + ':', cmd: "sudo ss -ltnp 'sport = :" + port + "'" });
+        if (known('nginx|apache|httpd|caddy|lighttpd')) {
+          const unit = ['nginx', 'apache2', 'httpd', 'caddy', 'lighttpd'].find(u => owner.includes(u)) || 'apache2';
+          steps.push({ text: 'It runs as a system service: stop it and keep it off at boot (on Debian/Ubuntu Apache is <span class="mono">apache2</span>, elsewhere <span class="mono">httpd</span>):', cmd: 'sudo systemctl disable --now ' + unit });
+        } else if (known('docker')) steps.push({ text: 'It\'s a Docker container. Find and stop the one that publishes port ' + port + ':', cmd: 'docker ps --filter "publish=' + port + '"' });
+        steps.push({ text: 'Or stop ' + who + ' by its process ID:', cmd: 'kill ' + pid });
+        steps.push({ text: 'Not sure it\'s a service? <span class="mono">systemctl list-units --type=service --state=running</span> lists them: look for nginx, apache2/httpd, tomcat, jenkins or another dev server.' });
+      }
+      steps.push({ text: 'Prefer the terminal? <span class="mono">laramonster port ' + (p.free || port + 1) + (p.use === 'HTTPS' ? ' --https' : '') + '</span> moves LaraMonster to another port instead.' });
+      return steps;
+    },
+
+    // ---------- HTTPS (required in setup) ----------
+    // "none": no browser profile to trust yet, the system store is enough.
+    httpsReady() { return !!this.s?.tls.trusted && ['trusted', 'system', 'none'].includes(this.s.tls.browsers); },
+    async checkTrust() {
+      await this.loadSetup(); // also re-checks the trust stores right away
+      await this.refresh();
+      this.toast(this.httpsReady() ? 'HTTPS is trusted' : 'Not trusted yet', this.httpsReady() ? 'ok' : 'err');
+    },
+    // Trusting the CA by hand when the password prompt doesn't work.
+    trustFix(os) {
+      const root = this.s?.tls.root || 'root.crt', q = '"' + root + '"';
+      if (os === 'windows') return [
+        { text: 'Open <b>PowerShell</b> (no administrator needed) and add the certificate to your trusted roots. Windows asks you to confirm:', cmd: 'certutil -user -addstore Root ' + q },
+        { text: 'Firefox: open <span class="mono">about:preferences#privacy</span> → <b>View Certificates</b> → <b>Authorities</b> → <b>Import</b>, choose the file above and tick <i>Trust this CA to identify websites</i>.' },
+      ];
+      if (os === 'darwin') return [
+        { text: 'Open <b>Terminal</b> and add the certificate to your login keychain as trusted (asks for your password):', cmd: 'security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db ' + q },
+        { text: 'Or with the LaraMonster command-line tool:', cmd: 'laramonster trust' },
+        { text: 'Firefox: <span class="mono">about:preferences#privacy</span> → <b>View Certificates</b> → <b>Authorities</b> → <b>Import</b>.' },
+      ];
+      return [
+        { text: 'The easiest way: the LaraMonster command-line tool does all of the below.', cmd: 'laramonster trust' },
+        { text: '<b>Arch, Manjaro, Fedora, openSUSE</b> (p11-kit):', cmd: 'sudo trust anchor --store ' + q },
+        { text: '<b>Debian, Ubuntu, Mint</b>:', cmd: 'sudo cp ' + q + ' /usr/local/share/ca-certificates/laramonster.crt && sudo update-ca-certificates' },
+        { text: '<b>Chrome, Chromium and Firefox</b> read their own store (needs certutil: <span class="mono">libnss3-tools</span>, <span class="mono">nss-tools</span> or <span class="mono">nss</span>):', cmd: 'certutil -d sql:$HOME/.pki/nssdb -A -t C,, -n "LaraMonster Root CA" -i ' + q },
+      ];
     },
     async onboardFolder() {
       const ok = await this.setupStep('folder', async () => {
@@ -2155,7 +2283,17 @@ document.addEventListener('alpine:init', () => {
       // Show the real state, also when the change failed.
       input.checked = !!this.onboard.setup?.autostart;
     },
-    onboardTrust() { this.setupStep('trust', () => this.trustCA()); },
+    async onboardTrust() {
+      this.onboard.busy = 'trust';
+      try {
+        await api('POST', '/tls/trust');
+        await this.refresh();
+        if (this.httpsReady()) this.toast('HTTPS is trusted. Restart your browser once to pick it up.', 'ok');
+      } catch (e) {
+        this.onboard.trustFailed = true; // opens the by-hand steps
+        this.toast(e.message, 'err');
+      } finally { this.onboard.busy = ''; }
+    },
     async finishOnboard(then) {
       try { this.apply(await api('POST', '/setup/done')); } catch { /* shown again next time */ }
       this.onboard.open = false;

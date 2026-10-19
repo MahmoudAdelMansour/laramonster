@@ -247,6 +247,11 @@ func statusCmd() *cobra.Command {
 			if st.DashboardURL != "" {
 				fmt.Printf("  dashboard  %s\n", blue(st.DashboardURL))
 			}
+			ports := fmt.Sprintf("http %d, https %d", st.Config.HTTPPort, st.Config.HTTPSPort)
+			if len(st.PortsBusy) > 0 {
+				ports += " " + yellow(fmt.Sprintf("— %v used by another program: sites aren't served (see `laramonster port`)", st.PortsBusy))
+			}
+			fmt.Printf("  ports      %s\n", ports)
 			fmt.Printf("  sites      %d on *.%s\n", len(st.Sites), st.Config.TLD)
 			fmt.Printf("  php        default %s, serving %s\n", st.DefaultPHP, strings.Join(st.Pools, ", "))
 			var running []string

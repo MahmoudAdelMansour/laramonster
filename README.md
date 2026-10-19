@@ -96,7 +96,7 @@ Desktop app requirements: Linux needs `gtk3` + `webkit2gtk-4.1` (or build with `
 
 ## Quick start
 
-Open the LaraMonster app. On first launch a short setup picks your projects folder, installs PHP, adds `php`/`composer`/`laramonster` to your terminal, turns on start-at-login and trusts local HTTPS. You can run it again from Settings.
+Open the LaraMonster app. On first launch a short setup checks that the web server's ports are free (and moves to free ones, or shows how to stop whatever holds them on your OS), picks your projects folder, installs PHP, trusts local HTTPS (required: setup can't finish without it), adds `php`/`composer`/`laramonster` to your terminal and turns on start-at-login. You can run it again from Settings. The full documentation, with examples, is at [monstersgate.com/laramonster/docs](https://monstersgate.com/laramonster/docs) and under **Documentation** in the app's menu.
 
 Or from the terminal:
 
@@ -147,7 +147,7 @@ laramonster tld test && laramonster dns setup
 ## Notes
 
 - **PHP builds**: they come from static-php-cli's "common" set, which has every PDO driver Laravel needs (sqlite, mysql, pgsql) but no `intl`, `sodium` or `opcache`. Filament needs `intl`, so use a system PHP for it.
-- **Port conflicts**: LaraMonster refuses to start when its ports are already taken, for example by a second LaraMonster, nginx or Apache.
+- **Port conflicts**: when another program (a second LaraMonster, nginx, Apache, Docker…) holds the HTTP or HTTPS port, the engine still starts but doesn't serve sites. The dashboard names the program when the OS allows it, offers nearby free ports in one click, and shows the commands to free the port on macOS, Linux and Windows.
 - **Child processes**: if the engine dies, its children (php-fpm, databases) are stopped with it on Linux.
 
 ## Code layout

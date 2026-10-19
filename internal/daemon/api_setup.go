@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,16 +19,17 @@ import (
 
 // SetupStatus feeds the first-run welcome screen.
 type SetupStatus struct {
-	OS        string `json:"os"`
-	Folder    string `json:"folder"`    // suggested projects folder
-	Parked    bool   `json:"parked"`    // a projects folder is already parked
-	CLI       string `json:"cli"`       // laramonster CLI path, "" if missing
-	Terminal  bool   `json:"terminal"`  // shims written and bin dir on PATH
-	Bin       string `json:"bin"`       // the shims' directory
-	Autostart bool   `json:"autostart"` // starts at login
+	OS        string      `json:"os"`
+	Folder    string      `json:"folder"`    // suggested projects folder
+	Parked    bool        `json:"parked"`    // a projects folder is already parked
+	CLI       string      `json:"cli"`       // laramonster CLI path, "" if missing
+	Terminal  bool        `json:"terminal"`  // shims written and bin dir on PATH
+	Bin       string      `json:"bin"`       // the shims' directory
+	Autostart bool        `json:"autostart"` // starts at login
+	Ports     []PortCheck `json:"ports"`     // the web server's ports
 }
 
-func setupStatus() SetupStatus {
+func (rt *Runtime) setupStatus() SetupStatus {
 	cfg, err := config.Load()
 	if err != nil {
 		cfg = config.Default()
@@ -39,6 +42,7 @@ func setupStatus() SetupStatus {
 		Terminal:  core.ShimsInstalled() && core.PathConfigured(),
 		Bin:       paths.Bin(),
 		Autostart: autostart.Enabled(),
+		Ports:     rt.portChecks(cfg),
 	}
 	return st
 }
@@ -60,7 +64,32 @@ func suggestedFolder(cfg *config.Config) string {
 
 // registerSetup adds the endpoints behind the welcome screen.
 func (rt *Runtime) registerSetup(handle func(string, apiFunc)) {
-	handle("GET /api/setup", func(*http.Request) (any, error) { return setupStatus(), nil })
+	handle("GET /api/setup", func(*http.Request) (any, error) {
+		rt.invalidateTLS() // the screen re-checks trust after a by-hand install
+		return rt.setupStatus(), nil
+	})
+
+	// Move the web server to other ports when another program holds them.
+	// A port that is still busy shows in the returned status, not as an
+	// error, so the screen always shows what's wrong now.
+	handle("POST /api/setup/ports", func(r *http.Request) (any, error) {
+		var s core.Settings
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&s); err != nil {
+			return nil, err
+		}
+		if s.HTTPPort != nil || s.HTTPSPort != nil {
+			if err := core.UpdateSettings(core.Settings{HTTPPort: s.HTTPPort, HTTPSPort: s.HTTPSPort}); err != nil {
+				return nil, err
+			}
+		}
+		if err := rt.Reload(); err != nil {
+			var busy *PortsBusyError
+			if !errors.As(err, &busy) {
+				return nil, err
+			}
+		}
+		return rt.setupStatus(), nil
+	})
 
 	// Park the projects folder, creating it if needed.
 	handle("POST /api/setup/folder", rt.mutating(func(b body) error {
@@ -97,7 +126,7 @@ func (rt *Runtime) registerSetup(handle func(string, apiFunc)) {
 		if _, err := core.AddToPath(); err != nil {
 			return nil, err
 		}
-		return setupStatus(), nil
+		return rt.setupStatus(), nil
 	})
 
 	// Start at login. The engine already runs, so the registration only
@@ -122,7 +151,7 @@ func (rt *Runtime) registerSetup(handle func(string, apiFunc)) {
 		if err != nil {
 			return nil, err
 		}
-		return setupStatus(), nil
+		return rt.setupStatus(), nil
 	})
 
 	handle("POST /api/setup/done", rt.mutating(func(body) error {

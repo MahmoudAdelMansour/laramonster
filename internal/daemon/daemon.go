@@ -56,7 +56,12 @@ func Run(ctx context.Context, ready func(*Runtime)) error {
 	go srv.Serve(ln)
 
 	if err := rt.Reload(); err != nil {
-		return err
+		var busy *PortsBusyError
+		if !errors.As(err, &busy) {
+			return err
+		}
+		// Stay up: the dashboard shows who holds the ports and how to fix it.
+		log.Print("warning: ", err)
 	}
 	rt.ready.Store(true)
 	rt.StartEnabledServices()
