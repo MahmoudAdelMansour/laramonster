@@ -143,6 +143,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     s: null,
     offline: false,
+    wn: { open: false, all: false, data: null }, // What's new
     onboard: { open: false, step: 0, setup: null, folder: '', busy: '', single: false, trustFailed: false, osPicked: false },
     portsOS: 'linux', // the OS tab in the port and HTTPS instructions
     page: 'dashboard',
@@ -320,6 +321,8 @@ document.addEventListener('alpine:init', () => {
       if (first) this.syncForm();
       // Arriving from a license email: activation first, setup can wait.
       if (first && !st.onboarded && !location.hash.startsWith('#account?')) this.openOnboard();
+      // Updated since last time: say what changed, once.
+      if (first && st.onboarded) this.maybeShowWhatsNew();
       for (const j of st.jobs) {
         if (j.done && !this.seenJobs[j.id] && !first) {
           const failed = !!j.error;
@@ -2112,6 +2115,31 @@ document.addEventListener('alpine:init', () => {
       const f = this.form;
       if (await this.act(api('POST', '/settings', { tld: f.tld, http_port: Number(f.http_port), https_port: Number(f.https_port), dns_port: Number(f.dns_port), editor: f.editor }), 'Settings saved')) this.syncForm();
     },
+    // ---------- what's new ----------
+    async maybeShowWhatsNew() {
+      try {
+        const d = await api('GET', '/whatsnew');
+        if (d.unseen && !this.onboard.open) Object.assign(this.wn, { open: true, all: false, data: d });
+      } catch { /* shown next time */ }
+    },
+    async openWhatsNew(all) {
+      try { Object.assign(this.wn, { open: true, all: !!all, data: await api('GET', '/whatsnew' + (all ? '?all=1' : '')) }); }
+      catch (e) { this.toast(e.message, 'err'); }
+    },
+    closeWhatsNew() {
+      this.wn.open = false;
+      api('POST', '/whatsnew/seen').catch(() => {});
+    },
+    // "Show me": close, then go where the feature lives.
+    whatsNewGo(it) {
+      this.closeWhatsNew();
+      if (it.action === 'ports') { location.hash = 'settings'; this.openPortsFix(); return; }
+      if (it.page) location.hash = it.page;
+    },
+    fmtDate(d) {
+      try { return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return d; }
+    },
+
     // ---------- first-run setup ----------
     onboardSteps: ['Welcome', 'Ports', 'Projects', 'PHP', 'HTTPS', 'Your system', 'Done'],
     obStep(name) { return this.onboardSteps.indexOf(name); },

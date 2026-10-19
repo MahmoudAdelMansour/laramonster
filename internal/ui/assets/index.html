@@ -118,7 +118,7 @@
     </nav>
     <div class="sidebar-foot">
       <div class="engine"><i class="dot on pulse"></i> Engine running</div>
-      <div class="engine-sub">v<span x-text="(s?.version || '').replace(/^v/, '')"></span></div>
+      <button type="button" class="engine-sub" @click="openWhatsNew(true)" title="What's new">v<span x-text="(s?.version || '').replace(/^v/, '')"></span> · What's new</button>
       <!-- a newer version on monstersgate.com: the app installs it, or one click to its download -->
       <button type="button" class="update-chip" x-show="update?.available || upd?.phase === 'ready'" x-cloak @click="updChipClick()" :title="'LaraMonster v' + update?.latest">
         <svg class="i" :class="{ spin: ['downloading', 'installing'].includes(upd?.phase) }"><use :href="['downloading', 'installing'].includes(upd?.phase) ? '#i-loader' : (upd?.phase === 'ready' ? '#i-refresh' : '#i-download')"/></svg><span x-text="updChipText()"></span>
@@ -1988,7 +1988,7 @@
           <div class="card">
             <div class="card-head"><h2>About</h2></div>
             <div class="card-pad small stack" style="gap:6px">
-              <div class="row"><span class="grow muted">Version</span><b x-text="s.version"></b></div>
+              <div class="row"><span class="grow muted">Version</span><b x-text="s.version"></b><button class="btn btn-sm btn-ghost" style="margin-left:8px" @click="openWhatsNew(true)"><svg class="i"><use href="#i-sparkles"/></svg> What's new</button></div>
               <div class="row"><span class="muted">Home</span><span class="grow mono ellipsis" style="text-align:right" x-text="s.home" :title="s.home"></span></div>
               <div class="row" style="margin-top:8px"><button class="btn btn-sm btn-ghost" @click="openOnboard()"><svg class="i"><use href="#i-refresh"/></svg> Run setup again</button><button class="btn btn-sm btn-danger" @click="stopEngine()"><svg class="i"><use href="#i-power"/></svg> Stop LaraMonster</button></div>
             </div>
@@ -2819,6 +2819,65 @@
         <button class="btn btn-orange" @click="finishOnboard('project')"><svg class="i"><use href="#i-plus"/></svg> Create a project</button>
       </div>
     </section>
+  </div>
+</div>
+
+<!-- ============ WHAT'S NEW (once after an update; Settings › About) ============ -->
+<div class="modal-back modal-top" x-show="wn.open" x-cloak @click.self="closeWhatsNew()" x-transition.opacity @keydown.escape.window="wn.open && closeWhatsNew()">
+  <div class="card modal wn" role="dialog" aria-modal="true" aria-labelledby="wn-title">
+    <header class="wn-head">
+      <span class="wn-head__icon" aria-hidden="true"><svg class="i"><use href="#i-sparkles"/></svg></span>
+      <div class="grow">
+        <p class="wn-kicker" x-text="wn.all ? 'Changelog' : 'Updated to version ' + (wn.data?.version || '')"></p>
+        <h2 id="wn-title" x-text="wn.all ? 'Everything that changed' : 'What\'s new in LaraMonster'"></h2>
+      </div>
+      <button class="btn btn-ghost icon-btn" @click="closeWhatsNew()" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="modal-body wn-body">
+      <template x-if="!(wn.data?.releases || []).length">
+        <div class="wn-empty"><svg class="i"><use href="#i-check"/></svg><div><b>You're up to date</b><span>Nothing changed since you last looked. The full list is under <button class="btn btn-link small" @click="openWhatsNew(true)">See every version</button>.</span></div></div>
+      </template>
+      <template x-for="rel in (wn.data?.releases || [])" :key="rel.version">
+        <section class="wn-release" :aria-labelledby="'wn-r-' + rel.version">
+          <div class="wn-release__head">
+            <span class="wn-version" x-text="'v' + rel.version"></span>
+            <span class="wn-date" x-text="fmtDate(rel.date)"></span>
+          </div>
+          <h3 class="wn-release__title" :id="'wn-r-' + rel.version" x-text="rel.title"></h3>
+          <p class="wn-release__summary" x-text="rel.summary"></p>
+          <ul class="wn-items">
+            <template x-for="(it, i) in rel.items" :key="i">
+              <li class="wn-item">
+                <span class="wn-item__icon" aria-hidden="true"><svg class="i"><use :href="'#i-' + it.icon"/></svg></span>
+                <div class="wn-item__body">
+                  <div class="wn-item__title">
+                    <span class="wn-kind" :class="'wn-kind--' + it.kind" x-text="{ new: 'New', improved: 'Improved', fixed: 'Fixed' }[it.kind]"></span>
+                    <b x-text="it.title"></b>
+                    <span class="wn-pro" x-show="it.pro">PRO</span>
+                  </div>
+                  <p x-text="it.text"></p>
+                  <div class="wn-item__foot">
+                    <span class="wn-where" :aria-label="'Where: ' + it.where.join(', then ')">
+                      <span class="wn-where__label" aria-hidden="true">Where</span>
+                      <template x-for="(w, j) in it.where" :key="j"><span class="wn-where__step"><span x-text="w"></span><svg class="i" x-show="j < it.where.length - 1" aria-hidden="true"><use href="#i-back"/></svg></span></template>
+                    </span>
+                    <span class="wn-actions">
+                      <button class="btn btn-sm btn-ghost" x-show="it.page || it.action" @click="whatsNewGo(it)">Show me</button>
+                      <a class="btn btn-sm btn-link" x-show="it.docs" :href="docsURL(...(it.docs || '').split('#'))" target="_blank" rel="noopener">Docs <svg class="i"><use href="#i-external"/></svg></a>
+                    </span>
+                  </div>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </section>
+      </template>
+    </div>
+    <footer class="modal-foot">
+      <button class="btn btn-link small" x-show="!wn.all" @click="openWhatsNew(true)">See every version</button>
+      <button class="btn btn-link small" x-show="wn.all" @click="openURL(docsURL())">Read the documentation</button>
+      <button class="btn btn-orange" @click="closeWhatsNew()">Got it</button>
+    </footer>
   </div>
 </div>
 

@@ -69,6 +69,8 @@ LaraMonster is then in your app menu, and `laramonster` works in new terminals. 
 
 When you open LaraMonster it checks for a new version, then downloads and installs it by itself and asks you to **Restart** when it's ready (your sites pause for a few seconds). Prefer to decide yourself? Turn off **Settings → About → Update automatically**: LaraMonster then only tells you a new version is out, with an **Update now** button. Microsoft Store copies are updated by the Store.
 
+
+After an update, **What's new** opens once with what changed in each version and where to find it, with **Show me** to go there and a link to the docs. Reopen it any time from **Settings → About** or the version number in the sidebar. Maintainers: add a `Release` at the top of `internal/whatsnew/whatsnew.go` before tagging a version.
 ## LaraMonster Pro
 
 Extra tools for Laravel sites, unlocked by a license from [monstersgate.com/laramonster](https://monstersgate.com/laramonster) (sign in under **Account** with your monstersgate.com email, or a license key):

@@ -15,6 +15,7 @@ import (
 	"laramonster/internal/config"
 	"laramonster/internal/core"
 	"laramonster/internal/paths"
+	"laramonster/internal/whatsnew"
 )
 
 // SetupStatus feeds the first-run welcome screen.
@@ -154,7 +155,38 @@ func (rt *Runtime) registerSetup(handle func(string, apiFunc)) {
 		return rt.setupStatus(), nil
 	})
 
+	// A fresh install has nothing new to show: this version counts as seen.
 	handle("POST /api/setup/done", rt.mutating(func(body) error {
-		return core.Mutate(func(c *config.Config) error { c.Onboarded = true; return nil })
+		return core.Mutate(func(c *config.Config) error {
+			c.Onboarded = true
+			c.SeenVersion = strings.TrimPrefix(core.Version, "v")
+			return nil
+		})
 	}))
+
+	// What's new: the releases since the last one this user saw, shown once
+	// after an update; ?all=1 is the whole changelog (Settings › About).
+	handle("GET /api/whatsnew", func(r *http.Request) (any, error) {
+		cfg, err := config.Load()
+		if err != nil {
+			return nil, err
+		}
+		fresh := whatsnew.Since(core.Version, cfg.SeenVersion)
+		list := fresh
+		if r.URL.Query().Get("all") != "" {
+			list = whatsnew.Upto(core.Version)
+		}
+		return map[string]any{
+			"version":  strings.TrimPrefix(core.Version, "v"),
+			"seen":     cfg.SeenVersion,
+			"unseen":   len(fresh) > 0,
+			"releases": list,
+		}, nil
+	})
+	handle("POST /api/whatsnew/seen", func(*http.Request) (any, error) {
+		return nil, core.Mutate(func(c *config.Config) error {
+			c.SeenVersion = strings.TrimPrefix(core.Version, "v")
+			return nil
+		})
+	})
 }

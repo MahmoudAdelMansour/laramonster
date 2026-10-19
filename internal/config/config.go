@@ -45,6 +45,8 @@ type Config struct {
 	// Off by default: the desktop app doesn't need it.
 	BrowserDashboard bool `json:"browser_dashboard"`
 	Onboarded        bool `json:"onboarded"` // the first-run setup was finished or skipped
+	// SeenVersion is the newest version whose "What's new" was shown.
+	SeenVersion string `json:"seen_version,omitempty"`
 	// ManualUpdates turns off installing updates by themselves: the app
 	// only says a new version is out. Off (updates on) by default.
 	ManualUpdates bool `json:"manual_updates"`
