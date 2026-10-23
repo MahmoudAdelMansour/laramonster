@@ -324,11 +324,22 @@ func TrustCA() error {
 	if err != nil {
 		return err
 	}
-	if runtime.GOOS == "darwin" && !trust.Trusted() {
+	switch {
+	case trust.Trusted():
+	case runtime.GOOS == "darwin":
 		if err := trust.InstallMacUser(); err != nil {
 			return err
 		}
-	} else if os.Geteuid() != 0 && !trust.Trusted() {
+	case runtime.GOOS == "windows":
+		// The current user's Root store: no administrator rights, so no
+		// PowerShell or UAC. Windows asks to confirm with its own dialog.
+		if err := trust.InstallWindowsUser(); err != nil {
+			return err
+		}
+		if !trust.Trusted() {
+			return errors.New("the certificate was added, but Windows still doesn't trust it: a company policy may block personal certificates. Ask your IT team, or use the manual steps")
+		}
+	case os.Geteuid() != 0:
 		script := fmt.Sprintf("LARAMONSTER_HOME='%s' '%s' trust --system-only", paths.Root(), exe)
 		if err := elevate.Run(script); err != nil {
 			return fmt.Errorf("installing into the system store: %w", err)

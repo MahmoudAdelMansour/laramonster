@@ -150,7 +150,7 @@ func (m *Manager) Start(site string, o Options, progress fetch.Progress) error {
 		m.Reload() // the local listener must exist before visitors arrive
 	}
 
-	cmd := exec.Command(bin, "tunnel", "--no-autoupdate", "--url", fmt.Sprintf("http://127.0.0.1:%d", port))
+	cmd := proc.Command(bin, "tunnel", "--no-autoupdate", "--url", fmt.Sprintf("http://127.0.0.1:%d", port))
 	proc.Bind(cmd)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -330,7 +330,7 @@ func Binary(progress fetch.Progress) (string, error) {
 		return "", err
 	}
 	if runtime.GOOS == "darwin" {
-		_ = exec.Command("xattr", "-d", "com.apple.quarantine", file).Run()
+		_ = proc.Command("xattr", "-d", "com.apple.quarantine", file).Run()
 	}
 	if err := os.Rename(file, ManagedBinary()); err != nil {
 		return "", err

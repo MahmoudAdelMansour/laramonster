@@ -330,7 +330,7 @@ func spawn(i Install, logFile, addr, bin string, args ...string) (*worker, error
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(bin, args...)
+	cmd := proc.Command(bin, args...)
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.Env = append(os.Environ(), i.Env()...)
 	// php-cgi exits after this many requests; 0 disables that on Windows.

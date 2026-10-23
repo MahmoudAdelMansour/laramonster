@@ -1939,7 +1939,7 @@
               </div>
               <div class="alert info small" x-show="s.tls.browsers === 'missing-certutil'"><svg class="i"><use href="#i-info"/></svg><div>Browsers need <b>certutil</b> to learn about the certificate. <a href="#tools">Install “Browser certificate tools”</a>, then trust again.</div></div>
               <div class="hint" x-show="tlsOK()">Still seeing a warning? Restart your browser once; it reads certificates on startup.</div>
-              <div class="actions"><button class="btn btn-sm" :disabled="!s.tls.exists || trusting" @click="trustCA()"><svg class="i" :class="{ spin: trusting }"><use :href="trusting ? '#i-loader' : '#i-shield'"/></svg> <span x-text="tlsOK() ? 'Trust again' : 'Trust certificate authority'"></span></button><span class="small muted">asks for your password</span></div>
+              <div class="actions"><button class="btn btn-sm" :disabled="!s.tls.exists || trusting" @click="trustCA()"><svg class="i" :class="{ spin: trusting }"><use :href="trusting ? '#i-loader' : '#i-shield'"/></svg> <span x-text="tlsOK() ? 'Trust again' : 'Trust certificate authority'"></span></button><span class="small muted" x-text="trustHint()"></span></div>
             </div>
           </div>
           <div class="card">
@@ -2730,7 +2730,7 @@
     <section class="card onboard-card" x-show="onboard.step === obStep('HTTPS')">
       <h1 class="display">Trust local HTTPS</h1>
       <p>LaraMonster signs a certificate for every site with its own certificate authority, created on this computer and never shared. Trusting it once gives every <span class="mono">https://</span> site a valid padlock, so secure cookies, OAuth callbacks, service workers and webhooks behave like they do in production.</p>
-      <div class="alert info small"><svg class="i"><use href="#i-info"/></svg><div>This step is required. Your system asks for your password once<span x-show="onboard.setup?.os === 'linux'">, and browsers on Linux need <b>certutil</b> to learn about the certificate</span>.</div></div>
+      <div class="alert info small"><svg class="i"><use href="#i-info"/></svg><div>This step is required. <span x-text="onboard.setup?.os === 'windows' ? 'Windows asks you to confirm once (choose Yes); no administrator rights needed' : 'Your system asks for your password once'"></span><span x-show="onboard.setup?.os === 'linux'">, and browsers on Linux need <b>certutil</b> to learn about the certificate</span>.</div></div>
       <div x-show="s">
         <div class="opt-row">
           <i class="dot" :class="s?.tls.trusted ? 'on' : 'off'"></i>
@@ -2752,7 +2752,7 @@
       </template>
       <div class="row" x-show="s && !httpsReady()">
         <button class="btn btn-orange" :disabled="!!onboard.busy || !s?.tls.exists" @click="onboardTrust()"><svg class="i" :class="{ spin: onboard.busy === 'trust' }"><use :href="onboard.busy === 'trust' ? '#i-loader' : '#i-shield'"/></svg> <span x-text="s?.tls.trusted ? 'Trust in browsers' : 'Trust the certificate'"></span></button>
-        <span class="small muted">asks for your password</span>
+        <span class="small muted" x-text="trustHint()"></span>
       </div>
       <template x-if="s && httpsReady()">
         <div class="alert success"><svg class="i"><use href="#i-check"/></svg><div>HTTPS is trusted. Restart your browser once so it picks up the certificate.</div></div>

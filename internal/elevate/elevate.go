@@ -4,7 +4,9 @@ package elevate
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"laramonster/internal/proc"
 	"os"
 	"os/exec"
 	"runtime"
@@ -29,8 +31,9 @@ func RunTo(script string, out io.Writer) error {
 	var cmd *exec.Cmd
 	switch {
 	case runtime.GOOS == "windows":
-		ps := "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-Command'," + psQuote(script)
-		cmd = exec.Command("powershell", "-NoProfile", "-Command", ps)
+		// -PassThru and exit: without them a failed script still looks done.
+		ps := "$p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile','-Command'," + psQuote(script) + "; exit $p.ExitCode"
+		cmd = proc.Command("powershell", "-NoProfile", "-Command", ps)
 	case os.Geteuid() == 0:
 		cmd = exec.Command("sh", "-c", script)
 	case interactive():
@@ -50,8 +53,12 @@ func RunTo(script string, out io.Writer) error {
 	}
 	// osascript exits with 1 both when the dialog is cancelled and when the
 	// script fails: keep its message to tell them apart.
+	// The same for PowerShell: the UAC prompt's No is an error there too.
 	var osaErr strings.Builder
-	if cmd.Args[0] == "osascript" {
+	switch {
+	case runtime.GOOS == "windows" && out == nil:
+		cmd.Stderr = &osaErr // the desktop app has no stderr to copy to
+	case cmd.Args[0] == "osascript" || runtime.GOOS == "windows":
 		cmd.Stderr = io.MultiWriter(cmd.Stderr, &osaErr)
 	}
 	err := cmd.Run()
@@ -62,6 +69,10 @@ func RunTo(script string, out io.Writer) error {
 			return errors.New("the password prompt was cancelled")
 		case cmd.Args[0] == "osascript":
 			return osascriptError(osaErr.String(), err)
+		case runtime.GOOS == "windows" && strings.Contains(strings.ToLower(osaErr.String()), "canceled by the user"):
+			return errors.New("the administrator prompt was cancelled: click again and choose Yes")
+		case runtime.GOOS == "windows":
+			return fmt.Errorf("the administrator step failed (exit code %d)", ee.ExitCode())
 		}
 	}
 	return err

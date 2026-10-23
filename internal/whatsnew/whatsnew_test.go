@@ -25,7 +25,7 @@ func TestSince(t *testing.T) {
 		{"0.2.1", "0.2.0", []string{"0.2.1"}},     // a newer entry isn't shown before its release
 		{"0.2.2", "", []string{"0.2.2", "0.2.1"}}, // nothing seen yet: the two newest
 		{"0.1.0-dev", "", nil},                    // development builds predate every release
-		{"0.3.0-beta.1", "0.2.1", []string{"0.2.3", "0.2.2"}},
+		{"0.3.0-beta.1", "0.2.1", []string{"0.2.4", "0.2.3", "0.2.2"}},
 		{"0.2.3", "0.2.2", []string{"0.2.3"}},
 	} {
 		if got := versions(Since(c.current, c.seen)); !slices.Equal(got, c.want) {

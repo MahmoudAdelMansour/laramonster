@@ -31,11 +31,27 @@ func Run(ctx context.Context, ready func(*Runtime)) error {
 	if client.Running() {
 		return errors.New("LaraMonster is already running")
 	}
+	// Before anything opens a file in the home: a move needs all of them closed.
+	moved, moveErr := paths.MoveHome()
+	if moved != "" {
+		if err := paths.Ensure(); err != nil {
+			return err
+		}
+	}
 
 	if f, err := os.OpenFile(filepath.Join(paths.Logs(), "laramonster.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 		defer f.Close()
 		log.SetOutput(io.MultiWriter(os.Stderr, f))
 		defer log.SetOutput(os.Stderr)
+	}
+	if moveErr != nil {
+		log.Print("warning: ", moveErr)
+	}
+	if moved != "" {
+		log.Printf("moved LaraMonster's files from %s to %s", moved, paths.Root())
+		for _, err := range core.AfterHomeMove(moved) {
+			log.Print("warning: after moving the home: ", err)
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

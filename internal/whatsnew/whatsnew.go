@@ -37,6 +37,23 @@ type Release struct {
 // Releases, newest first.
 var Releases = []Release{
 	{
+		Version: "0.2.4",
+		Date:    "2026-10-23",
+		Title:   "Quieter and simpler on Windows",
+		Summary: "No more console windows popping up, HTTPS is trusted in one click, and LaraMonster's files now live where every program can find them.",
+		Items: []Item{
+			{Kind: "fixed", Icon: "monitor", Title: "No more console windows",
+				Text:  "On Windows, LaraMonster's PHP, databases and checks each opened a console or Terminal window, many times a minute. They all run hidden now.",
+				Where: []string{"Windows"}},
+			{Kind: "fixed", Icon: "shield", Title: "Trust HTTPS in one click",
+				Text:  "On Windows, Trust opened an empty window and trusted nothing. It now adds the certificate directly: Windows asks once, choose Yes. No administrator rights needed.",
+				Where: []string{"Settings", "HTTPS"}, Page: "settings", Docs: "https"},
+			{Kind: "improved", Icon: "folder", Title: "Your files moved to .laramonster",
+				Text:  "On Windows, LaraMonster's sites, PHP versions, databases and certificate now live in your user folder (.laramonster), so terminals, php and composer find them too, also with the Microsoft Store version. They moved there by themselves; nothing to do.",
+				Where: []string{"Settings", "About"}, Page: "settings"},
+		},
+	},
+	{
 		Version: "0.2.3",
 		Date:    "2026-10-19",
 		Title:   "Updates now update everything",

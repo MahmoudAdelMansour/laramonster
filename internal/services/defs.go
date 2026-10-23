@@ -10,6 +10,7 @@ import (
 
 	"laramonster/internal/fetch"
 	"laramonster/internal/paths"
+	procutil "laramonster/internal/proc"
 )
 
 var mysqlDef = &Def{
@@ -210,7 +211,7 @@ func isMariaDB(bin string) bool {
 	if strings.Contains(filepath.Base(bin), "mariadb") {
 		return true
 	}
-	out, _ := exec.Command(bin, "--version").Output()
+	out, _ := procutil.Command(bin, "--version").Output()
 	return strings.Contains(strings.ToLower(string(out)), "mariadb")
 }
 

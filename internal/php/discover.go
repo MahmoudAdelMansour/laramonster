@@ -4,7 +4,6 @@ package php
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"laramonster/internal/paths"
+	"laramonster/internal/proc"
 )
 
 type Install struct {
@@ -101,7 +101,7 @@ var probeTimeout = map[bool]time.Duration{true: 30 * time.Second, false: 5 * tim
 func probe(fpm string) (Install, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, fpm, "-v").Output()
+	out, err := proc.CommandContext(ctx, fpm, "-v").Output()
 	if err != nil {
 		return Install{}, false
 	}
@@ -138,7 +138,7 @@ func findCLI(fpm, version string) string {
 	for _, d := range dirs {
 		for _, n := range names {
 			p := filepath.Join(d, n)
-			if out, err := exec.Command(p, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;").Output(); err == nil && string(out) == version {
+			if out, err := proc.Command(p, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;").Output(); err == nil && string(out) == version {
 				return p
 			}
 		}
@@ -199,7 +199,7 @@ func extensions(i Install) (pdo, exts []string) {
 	if i.CLI == "" {
 		return nil, nil
 	}
-	cmd := exec.Command(i.CLI, "-r", "echo (class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : ''), '|', strtolower(implode(',', get_loaded_extensions())), (function_exists('mb_split') ? ',mbregex' : ''), (function_exists('imagejpeg') ? ',gdjpeg' : '');")
+	cmd := proc.Command(i.CLI, "-r", "echo (class_exists('PDO') ? implode(',', PDO::getAvailableDrivers()) : ''), '|', strtolower(implode(',', get_loaded_extensions())), (function_exists('mb_split') ? ',mbregex' : ''), (function_exists('imagejpeg') ? ',gdjpeg' : '');")
 	cmd.Env = append(os.Environ(), i.Env()...)
 	out, err := cmd.Output()
 	if err != nil {
@@ -224,7 +224,7 @@ func (i Install) HasExtension(name string) bool {
 	if i.CLI == "" {
 		return false
 	}
-	cmd := exec.Command(i.CLI, "-r", "echo extension_loaded('"+name+"') ? 'yes' : 'no';")
+	cmd := proc.Command(i.CLI, "-r", "echo extension_loaded('"+name+"') ? 'yes' : 'no';")
 	cmd.Env = append(os.Environ(), i.Env()...)
 	out, err := cmd.Output()
 	return err == nil && string(out) == "yes"

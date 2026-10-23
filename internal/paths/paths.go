@@ -8,11 +8,17 @@ import (
 
 // Root is laramonster's home directory. LARAMONSTER_HOME overrides the default
 // (~/.config/laramonster on Linux, ~/Library/Application Support/laramonster on macOS,
-// %AppData%\laramonster on Windows).
+// %USERPROFILE%\.laramonster on Windows, see home_windows.go).
 func Root() string {
 	if v := os.Getenv("LARAMONSTER_HOME"); v != "" {
 		return v
 	}
+	return defaultRoot()
+}
+
+// configRoot is the home under the OS config directory: the default outside
+// Windows, and where Windows homes used to live (see MoveHome).
+func configRoot() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.TempDir()

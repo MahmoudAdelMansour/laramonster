@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"laramonster/internal/paths"
+	"laramonster/internal/proc"
 )
 
 const (
@@ -73,12 +74,12 @@ func Enabled() bool {
 		if _, err := os.Stat(xdgPath()); err == nil {
 			return true
 		}
-		return exec.Command("systemctl", "--user", "is-enabled", "--quiet", unitName).Run() == nil
+		return proc.Command("systemctl", "--user", "is-enabled", "--quiet", unitName).Run() == nil
 	case "darwin":
 		_, err := os.Stat(agentPath())
 		return err == nil
 	case "windows":
-		return exec.Command("schtasks", "/Query", "/TN", taskName).Run() == nil
+		return proc.Command("schtasks", "/Query", "/TN", taskName).Run() == nil
 	}
 	return false
 }
@@ -215,14 +216,14 @@ func Managed(pid int) bool {
 	if runtime.GOOS != "linux" || pid <= 0 {
 		return false
 	}
-	out, err := exec.Command("systemctl", "--user", "show", "-p", "MainPID", "--value", unitName).Output()
+	out, err := proc.Command("systemctl", "--user", "show", "-p", "MainPID", "--value", unitName).Output()
 	return err == nil && strings.TrimSpace(string(out)) == strconv.Itoa(pid)
 }
 
 func StopManaged() error { return run("systemctl", "--user", "stop", unitName) }
 
 func run(name string, args ...string) error {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	out, err := proc.Command(name, args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s %s: %v: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}

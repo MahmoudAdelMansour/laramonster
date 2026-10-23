@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"os/exec"
 	"regexp"
 	"runtime"
 	"slices"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"laramonster/internal/config"
+	"laramonster/internal/proc"
 	"laramonster/internal/services"
 )
 
@@ -105,9 +105,7 @@ func portOwner(port int) (string, int) {
 }
 
 func output(ctx context.Context, name string, args ...string) []byte {
-	cmd := exec.CommandContext(ctx, name, args...)
-	hideWindow(cmd)
-	b, _ := cmd.Output()
+	b, _ := proc.CommandContext(ctx, name, args...).Output()
 	return b
 }
 

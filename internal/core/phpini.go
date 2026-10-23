@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
 
 	"laramonster/internal/config"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/sites"
 )
 
@@ -371,7 +371,7 @@ func iniValues(inst php.Install, settings map[string]string, names []string) (ma
 	// what the CLI forces for itself (max_execution_time=0, display_errors).
 	code := `$o=[];foreach(json_decode($argv[1]) as $n){$v=get_cfg_var($n);if($v===false)$v=ini_get($n);$o[$n]=$v===false?'':(string)$v;}echo json_encode($o);`
 	args := append(php.IniArgs(settings), "-r", code, string(q))
-	cmd := exec.Command(inst.CLI, args...)
+	cmd := proc.Command(inst.CLI, args...)
 	cmd.Env = append(os.Environ(), inst.Env()...)
 	out, err := cmd.Output()
 	if err != nil {

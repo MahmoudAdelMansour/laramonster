@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/sites"
 )
 
@@ -444,7 +445,7 @@ func firstCommit(dir string, w *warnings, r io.Writer) {
 		return
 	}
 	gitArgs := []string{}
-	if out, _ := exec.Command("git", "config", "--global", "user.email").Output(); len(strings.TrimSpace(string(out))) == 0 {
+	if out, _ := proc.Command("git", "config", "--global", "user.email").Output(); len(strings.TrimSpace(string(out))) == 0 {
 		gitArgs = []string{"-c", "user.name=LaraMonster", "-c", "user.email=laramonster@localhost"}
 	}
 	t := newTail(r)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -13,6 +12,7 @@ import (
 
 	"laramonster/internal/config"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/sites"
 )
 
@@ -279,7 +279,7 @@ func phpInstall(version string) (php.Install, error) {
 }
 
 func runPHP(inst php.Install, dir string, out io.Writer, args ...string) error {
-	cmd := exec.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
+	cmd := proc.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.Env = append(os.Environ(), inst.Env()...)
@@ -292,7 +292,7 @@ func runPHP(inst php.Install, dir string, out io.Writer, args ...string) error {
 }
 
 func runTool(dir string, out io.Writer, pathDir, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	cmd := proc.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.Env = os.Environ()

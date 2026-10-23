@@ -74,7 +74,7 @@ func (w *Workers) Start(site string, inst php.Install, projectDir, connection, q
 		args = append(args, connection)
 	}
 	args = append(args, "--queue="+queue, fmt.Sprintf("--tries=%d", tries), "--sleep=1", "--no-interaction")
-	cmd := exec.Command(inst.CLI, args...)
+	cmd := proc.Command(inst.CLI, args...)
 	cmd.Dir = projectDir
 	cmd.Env = append(os.Environ(), inst.Env()...)
 	cmd.Stdout, cmd.Stderr = out, out

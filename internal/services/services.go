@@ -235,7 +235,7 @@ func (m *Manager) start(d *Def, port int) error {
 		return err
 	}
 	args := d.Args(bin, data, port)
-	cmd := exec.Command(bin, args...)
+	cmd := procutil.Command(bin, args...)
 	cmd.Dir = data
 	cmd.Stdout, cmd.Stderr = out, out
 	procutil.Bind(cmd)
@@ -349,7 +349,7 @@ func isFile(p string) bool {
 }
 
 func run(name string, args ...string) error {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	out, err := procutil.Command(name, args...).CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if len(msg) > 800 {

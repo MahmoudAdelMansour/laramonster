@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -263,6 +264,7 @@ type Status struct {
 	Jobs         []core.Job       `json:"jobs"`
 	Shares       []share.Link     `json:"shares"`
 	PortsBusy    []int            `json:"ports_busy"` // web server ports another program holds
+	OS           string           `json:"os"`
 }
 
 func (r *Runtime) Status() Status {
@@ -299,6 +301,7 @@ func (r *Runtime) Status() Status {
 		Jobs:      r.jobs.Snapshot(),
 		Shares:    r.shares.List(),
 		PortsBusy: busyPorts(cfg, ours),
+		OS:        runtime.GOOS,
 	}
 	if st.PortsBusy == nil {
 		st.PortsBusy = []int{}
@@ -329,7 +332,7 @@ func (r *Runtime) tlsStatus() TLSStatus {
 	r.tlsMu.Lock()
 	defer r.tlsMu.Unlock()
 	if time.Since(r.tlsAt) > 10*time.Second {
-		r.tls = TLSStatus{Exists: trust.Exists(), Trusted: trust.Trusted(), Browsers: trust.BrowserStatus(), Root: trust.RootCert()}
+		r.tls = TLSStatus{Exists: trust.Exists(), Trusted: trust.Trusted(), Browsers: trust.BrowserStatus(), Root: paths.OnDisk(trust.RootCert())}
 		r.tlsAt = time.Now()
 	}
 	return r.tls

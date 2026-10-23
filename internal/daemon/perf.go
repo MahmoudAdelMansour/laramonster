@@ -19,6 +19,7 @@ import (
 	"laramonster/internal/core"
 	"laramonster/internal/laravel"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/sites"
 	"laramonster/internal/webhook"
 )
@@ -409,7 +410,7 @@ func explainQuery(ctx context.Context, s sites.Site, inst php.Install, sql strin
 	defer os.Remove(script)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, inst.CLI, script)
+	cmd := proc.CommandContext(ctx, inst.CLI, script)
 	cmd.Dir = s.Path
 	cmd.Env = append(append(os.Environ(), inst.Env()...), "LARAMONSTER_EXPLAIN="+string(in))
 	out, err := cmd.Output()

@@ -12,6 +12,7 @@ import (
 
 	"laramonster/internal/fetch"
 	"laramonster/internal/paths"
+	"laramonster/internal/proc"
 )
 
 const composerURL = "https://getcomposer.org/download/latest-stable/composer.phar"
@@ -44,7 +45,7 @@ func PHPCommand(dir string, args ...string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
+	cmd := proc.Command(inst.CLI, append(iniArgsFor(inst, dir), args...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), inst.Env()...)
 	return cmd, nil
@@ -97,6 +98,14 @@ func CLIPath() string {
 		if real, err := filepath.EvalSymlinks(self); err == nil {
 			self = real
 		}
+		// The Store version's files can't be started by path from outside
+		// the package: its `laramonster` app execution alias can.
+		if runtime.GOOS == "windows" && strings.Contains(strings.ToLower(self), `\program files\windowsapps\`) {
+			// A reparse point: Lstat, Stat can't follow it.
+			if alias := filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WindowsApps", name); lexists(alias) {
+				return alias
+			}
+		}
 		if filepath.Base(self) == name {
 			return self
 		}
@@ -112,6 +121,8 @@ func CLIPath() string {
 	}
 	return ""
 }
+
+func lexists(p string) bool { _, err := os.Lstat(p); return err == nil }
 
 // ShimsInstalled reports whether the php shim exists in the bin dir.
 func ShimsInstalled() bool {
@@ -182,8 +193,8 @@ func PathConfigured() bool {
 		}
 	}
 	if runtime.GOOS == "windows" {
-		out, err := exec.Command("powershell", "-NoProfile", "-Command", "[Environment]::GetEnvironmentVariable('Path','User')").Output()
-		return err == nil && slices.Contains(filepath.SplitList(strings.TrimSpace(string(out))), paths.Bin())
+		p, err := userPath()
+		return err == nil && slices.Contains(filepath.SplitList(p), paths.Bin())
 	}
 	home, _ := os.UserHomeDir()
 	for _, rc := range []string{".bashrc", ".bash_profile", ".zshrc", ".profile", filepath.Join(".config", "fish", "conf.d", "laramonster.fish")} {
@@ -203,7 +214,7 @@ func AddToPath() ([]string, error) {
 		}
 		// Read and write the user PATH as-is (setx would truncate it).
 		script := "$p=[Environment]::GetEnvironmentVariable('Path','User'); if ($p) { $p=$p.TrimEnd(';')+';' }; [Environment]::SetEnvironmentVariable('Path', $p+$env:LM_BIN, 'User')"
-		cmd := exec.Command("powershell", "-NoProfile", "-Command", script)
+		cmd := proc.Command("powershell", "-NoProfile", "-Command", script)
 		cmd.Env = append(os.Environ(), "LM_BIN="+paths.Bin())
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return nil, fmt.Errorf("couldn't update your PATH: %v: %s", err, strings.TrimSpace(string(out)))

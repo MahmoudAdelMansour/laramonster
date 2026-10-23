@@ -20,6 +20,7 @@ import (
 
 	"laramonster/internal/paths"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 )
 
 //go:embed php/*.php
@@ -130,7 +131,7 @@ func Run(ctx context.Context, inst php.Install, projectDir, command string, inpu
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, inst.CLI,
+	cmd := proc.CommandContext(ctx, inst.CLI,
 		"-d", "auto_prepend_file="+AgentFile(), "-d", "memory_limit=1G", "-d", "display_errors=stderr",
 		filepath.Join(Dir(), "runner.php"), projectDir, command, in.Name())
 	cmd.Dir = projectDir
@@ -164,7 +165,7 @@ func Artisan(ctx context.Context, inst php.Install, projectDir string, args []st
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	full := append([]string{"-d", "auto_prepend_file=" + AgentFile(), "artisan", "--no-interaction", "--no-ansi"}, args...)
-	cmd := exec.CommandContext(ctx, inst.CLI, full...)
+	cmd := proc.CommandContext(ctx, inst.CLI, full...)
 	cmd.Dir = projectDir
 	cmd.Env = append(os.Environ(), inst.Env()...)
 	out, err := cmd.CombinedOutput()

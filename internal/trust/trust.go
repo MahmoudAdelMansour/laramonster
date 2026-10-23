@@ -13,10 +13,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/smallstep/truststore"
 
 	"laramonster/internal/paths"
+	"laramonster/internal/proc"
 )
 
 func RootCert() string {
@@ -143,7 +145,7 @@ func BrowserStatus() string {
 // SHA-256 fingerprint under any LaraMonster nickname (truststore names them
 // differently depending on how they were installed).
 func nssHas(certutil, db, fp string) bool {
-	list, err := exec.Command(certutil, "-L", "-d", "sql:"+db).Output()
+	list, err := proc.Command(certutil, "-L", "-d", "sql:"+db).Output()
 	if err != nil {
 		return false
 	}
@@ -157,7 +159,7 @@ func nssHas(certutil, db, fp string) bool {
 			continue
 		}
 		name := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), fields[len(fields)-1]))
-		out, _ := exec.Command(certutil, "-L", "-d", "sql:"+db, "-n", name, "-a").Output()
+		out, _ := proc.Command(certutil, "-L", "-d", "sql:"+db, "-n", name, "-a").Output()
 		for rest := out; ; {
 			var blk *pem.Block
 			blk, rest = pem.Decode(rest)
@@ -182,6 +184,21 @@ func InstallSystem() error {
 	return truststore.Install(cert, truststore.WithPrefix("laramonster-"))
 }
 
+// InstallWindowsUser trusts the CA in the current user's Root store, the
+// one Chrome, Edge and (since 120) Firefox read. Windows shows a "Security
+// Warning: install this certificate?" dialog; no administrator rights.
+func InstallWindowsUser() error {
+	err := InstallSystem()
+	if err == nil {
+		return nil
+	}
+	// ERROR_CANCELLED: No in the Security Warning dialog.
+	if errors.Is(err, syscall.Errno(1223)) || strings.Contains(strings.ToLower(err.Error()), "cancel") {
+		return errors.New("Windows didn't add the certificate (No was clicked in the Security Warning): click Trust again and choose Yes")
+	}
+	return fmt.Errorf("Windows refused to trust the certificate: %w", err)
+}
+
 // InstallMacUser trusts the CA in the login keychain, as the current user.
 // macOS shows its own password dialog for the trust change. Done as root
 // (sudo, osascript "with administrator privileges") macOS refuses it:
@@ -190,7 +207,7 @@ func InstallSystem() error {
 func InstallMacUser() error {
 	home, _ := os.UserHomeDir()
 	keychain := filepath.Join(home, "Library", "Keychains", "login.keychain-db")
-	out, err := exec.Command("security", "add-trusted-cert", "-r", "trustRoot", "-k", keychain, RootCert()).CombinedOutput()
+	out, err := proc.Command("security", "add-trusted-cert", "-r", "trustRoot", "-k", keychain, RootCert()).CombinedOutput()
 	if err == nil {
 		return nil
 	}

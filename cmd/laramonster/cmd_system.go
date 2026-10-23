@@ -284,11 +284,19 @@ func trustCmd() *cobra.Command {
 				return errors.New("the local CA is created on first start: run `laramonster start -b` first")
 			}
 			fmt.Println("Adding the LaraMonster root certificate to your trust stores…")
-			if err := trust.InstallSystem(); err != nil {
+			install := trust.InstallSystem
+			if runtime.GOOS == "windows" {
+				fmt.Println("Windows asks you to confirm: choose Yes.")
+				install = trust.InstallWindowsUser
+			}
+			if err := install(); err != nil {
 				return err
 			}
-			if err := trust.InstallBrowsers(); err != nil {
-				fmt.Println(yellow("! ") + "browser store (Firefox/Chrome NSS): " + err.Error())
+			// Browsers on Windows (and most on macOS) read the store above.
+			if trust.NeedsBrowserStores() {
+				if err := trust.InstallBrowsers(); err != nil {
+					fmt.Println(yellow("! ") + "browser store (Firefox/Chrome NSS): " + err.Error())
+				}
 			}
 			ok("trusted — restart your browser")
 			return nil

@@ -13,6 +13,7 @@ import (
 
 	"laramonster/internal/config"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/server"
 	"laramonster/internal/sites"
 )
@@ -265,7 +266,7 @@ func Open(target string) error {
 	case "darwin":
 		cmd = exec.Command("open", target)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
+		cmd = proc.Command("rundll32", "url.dll,FileProtocolHandler", target)
 	default:
 		cmd = exec.Command("xdg-open", target)
 	}
@@ -287,7 +288,7 @@ func OpenEditor(dir string) error {
 	if err != nil {
 		return fmt.Errorf("editor %q not found, change it in Settings", parts[0])
 	}
-	return exec.Command(bin, append(parts[1:], dir)...).Start()
+	return editorCommand(bin, append(parts[1:], dir)...).Start()
 }
 
 // DashboardURL is where the browser dashboard is served, or "" when it is off.
@@ -350,5 +351,15 @@ func OpenEditorAt(project, file string, line int) error {
 	default:
 		args = append(args, path)
 	}
-	return exec.Command(bin, args...).Start()
+	return editorCommand(bin, args...).Start()
+}
+
+// editorCommand starts an editor. On Windows `code`, `cursor` and friends
+// are .cmd scripts: without hiding, cmd.exe flashes a console window first.
+func editorCommand(bin string, args ...string) *exec.Cmd {
+	cmd := exec.Command(bin, args...)
+	if ext := strings.ToLower(filepath.Ext(bin)); ext == ".cmd" || ext == ".bat" {
+		proc.NoWindow(cmd)
+	}
+	return cmd
 }

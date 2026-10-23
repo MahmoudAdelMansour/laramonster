@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"laramonster/internal/proc"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,7 +78,7 @@ func probeExt(i Install) (builtin, loaded []string, dir string, iniFiles []strin
 	run := func(args ...string) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, i.CLI, args...)
+		cmd := proc.CommandContext(ctx, i.CLI, args...)
 		cmd.Env = append(os.Environ(), i.Env()...)
 		out, err := cmd.Output()
 		return strings.TrimSpace(string(out)), err

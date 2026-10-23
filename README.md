@@ -142,7 +142,7 @@ laramonster tld test && laramonster dns setup
                                               └── DNS server for *.<tld>
 ```
 
-- **Config**: `~/.config/laramonster/config.json` (macOS: `~/Library/Application Support/laramonster`, Windows: `%AppData%\laramonster`). Override it with `LARAMONSTER_HOME`.
+- **Config**: `~/.config/laramonster/config.json` (macOS: `~/Library/Application Support/laramonster`, Windows: `%USERPROFILE%\.laramonster`; older installs in `%AppData%\laramonster` move there on the next start). Override it with `LARAMONSTER_HOME`.
 - **Managed files**: everything else lives under the same home directory: `php/<ver>`, `services/<name>/{bin,data}`, `data/` (CA and certificates), `logs/`, `run/` (sockets) and `bin/` (shims).
 - **Dashboard and API**: the desktop app serves the UI itself and talks to the engine's socket directly. The optional browser dashboard (off by default) is served at `dashboard.laramonster.<tld>` and the Mailpit UI at `mail.laramonster.<tld>`. Site names can't contain dots, so these never collide with a project folder. Caddy proxies it to the engine's socket. API calls must carry an `X-LaraMonster` header, which a website in your browser can't add, so other sites can't control LaraMonster through localhost.
 

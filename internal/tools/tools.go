@@ -21,6 +21,7 @@ import (
 	"laramonster/internal/fetch"
 	"laramonster/internal/paths"
 	"laramonster/internal/php"
+	"laramonster/internal/proc"
 	"laramonster/internal/services"
 )
 
@@ -282,7 +283,7 @@ func Install(t *Tool, progress fetch.Progress, out io.Writer) error {
 	if runtime.GOOS == "windows" {
 		shell, flag = "powershell", "-Command"
 	}
-	cmd := exec.Command(shell, flag, script)
+	cmd := proc.Command(shell, flag, script)
 	cmd.Stdout, cmd.Stderr = out, out
 	return cmd.Run()
 }

@@ -672,7 +672,7 @@ document.addEventListener('alpine:init', () => {
       return [
         { title: 'Install PHP', icon: 'code', done: s.php.length > 0, text: s.php.length ? 'PHP ' + s.default_php + ' is the default' : 'One download, no compiling', button: 'Install', action: () => { location.hash = 'php'; } },
         { title: 'Add your projects', icon: 'folder', done: s.sites.length > 0, text: s.sites.length ? s.sites.length + ' site(s) served' : 'Park the folder that holds your projects', button: 'Add folder', action: () => this.openAdd('park') },
-        { title: 'Trust local HTTPS', icon: 'shield', done: this.tlsOK(), text: this.tlsOK() ? 'Secured sites get a valid padlock' : 'One password prompt', button: 'Trust', action: () => { location.hash = 'settings'; } },
+        { title: 'Trust local HTTPS', icon: 'shield', done: this.tlsOK(), text: this.tlsOK() ? 'Secured sites get a valid padlock' : (this.s.os === 'windows' ? 'One click, then Yes' : 'One password prompt'), button: 'Trust', action: () => { location.hash = 'settings'; } },
         { title: 'Mail inbox', icon: 'mail', done: s.mail.running, text: s.mail.running ? 'Catching emails from your apps' : 'See every email your apps send', button: 'Set up', action: () => { location.hash = 'mail'; } },
         { title: 'Start a database', icon: 'db', done: s.services.some(x => x.category === 'Database' && x.running), text: 'MySQL/MariaDB or PostgreSQL for your apps', button: 'Services', action: () => { location.hash = 'services'; } },
       ];
@@ -2262,11 +2262,16 @@ document.addEventListener('alpine:init', () => {
       await this.refresh();
       this.toast(this.httpsReady() ? 'HTTPS is trusted' : 'Not trusted yet', this.httpsReady() ? 'ok' : 'err');
     },
+    // What the Trust button will ask for on this computer.
+    trustHint() {
+      return { windows: 'Windows asks you to confirm: choose Yes', darwin: 'asks for your Mac password' }[this.s?.os] || 'asks for your password';
+    },
     // Trusting the CA by hand when the password prompt doesn't work.
     trustFix(os) {
       const root = this.s?.tls.root || 'root.crt', q = '"' + root + '"';
       if (os === 'windows') return [
-        { text: 'Open <b>PowerShell</b> (no administrator needed) and add the certificate to your trusted roots. Windows asks you to confirm:', cmd: 'certutil -user -addstore Root ' + q },
+        { text: 'Open <b>PowerShell</b> (no administrator needed) and run the LaraMonster command-line tool. Windows asks you to confirm: choose <b>Yes</b>.', cmd: 'laramonster trust' },
+        { text: 'Or add the certificate file yourself. Copy the whole command with the button (typing it by hand often breaks the quotes):', cmd: 'certutil -user -addstore Root ' + q },
         { text: 'Firefox: open <span class="mono">about:preferences#privacy</span> → <b>View Certificates</b> → <b>Authorities</b> → <b>Import</b>, choose the file above and tick <i>Trust this CA to identify websites</i>.' },
       ];
       if (os === 'darwin') return [

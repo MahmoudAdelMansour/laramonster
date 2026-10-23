@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"laramonster/internal/paths"
+	"laramonster/internal/proc"
 )
 
 // Broken is a PHP version LaraMonster installed that doesn't start, so it's
@@ -80,7 +81,7 @@ func diagnose(version, dir string) Broken {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "-v").CombinedOutput()
+	out, err := proc.CommandContext(ctx, bin, "-v").CombinedOutput()
 	var ee *exec.ExitError
 	switch {
 	case err == nil && versionRe.Match(out):
